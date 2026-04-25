@@ -1,9 +1,10 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, Workflow } from "lucide-react";
+import { Focus, Hand, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useTheme } from "@/components/theme-provider";
 
 const initialDiagram = `flowchart LR
   A[Idea] --> B{Shape it}
@@ -19,7 +20,7 @@ const initialDiagram = `flowchart LR
   class B,C,D,F calm`;
 
 type LayoutRenderer = "dagre-wrapper" | "elk";
-type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral";
+type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
 
 const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
   startOnLoad: false,
@@ -30,7 +31,7 @@ const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
   flowchart: {
     defaultRenderer: layout,
   },
-  theme,
+  theme: theme === "apple-glass" ? "base" : theme,
   themeVariables:
     theme === "base"
       ? {
@@ -41,6 +42,20 @@ const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
           secondaryColor: "#eef2ff",
           tertiaryColor: "#f8fafc",
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        }
+      : theme === "apple-glass"
+      ? {
+          primaryColor: "rgba(255, 255, 255, 0.4)",
+          primaryTextColor: "#1d1d1f",
+          primaryBorderColor: "rgba(255, 255, 255, 0.7)",
+          lineColor: "rgba(0, 0, 0, 0.25)",
+          secondaryColor: "rgba(245, 245, 247, 0.4)",
+          tertiaryColor: "rgba(229, 229, 234, 0.4)",
+          clusterBkg: "rgba(255, 255, 255, 0.2)",
+          clusterBorder: "rgba(0, 0, 0, 0.08)",
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', Roboto, sans-serif",
+          edgeLabelBackground: "rgba(255, 255, 255, 0.65)",
+          nodeBorder: "rgba(255, 255, 255, 0.8)",
         }
       : {
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
@@ -84,6 +99,7 @@ mermaid.registerLayoutLoaders(elkLayouts);
 mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
+  const { theme, setTheme } = useTheme();
   const [code, setCode] = useState(initialDiagram);
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
@@ -252,6 +268,7 @@ const Index = () => {
               className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
             >
               <option value="base" className="bg-background">Base</option>
+              <option value="apple-glass" className="bg-background">Apple Glass</option>
               <option value="default" className="bg-background">Default</option>
               <option value="dark" className="bg-background">Dark</option>
               <option value="forest" className="bg-background">Forest</option>
@@ -269,6 +286,10 @@ const Index = () => {
             </Button>
             <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
               <Focus />
+            </Button>
+            <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+            <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
+              {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>
             <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
           </div>
