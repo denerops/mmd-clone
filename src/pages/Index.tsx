@@ -46,6 +46,8 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
 mermaid.initialize({
   startOnLoad: false,
   securityLevel: "loose",
+  maxTextSize: 5_000_000,
+  maxEdges: 100_000,
   theme: "base",
   themeVariables: {
     primaryColor: "#ccfbf1",
@@ -63,6 +65,7 @@ const Index = () => {
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
+  const [isRendering, setIsRendering] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -70,24 +73,30 @@ const Index = () => {
   const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
+  const renderSequenceRef = useRef(0);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
 
   useEffect(() => {
     let cancelled = false;
+    const renderSequence = renderSequenceRef.current + 1;
+    renderSequenceRef.current = renderSequence;
+    setIsRendering(true);
     const timer = window.setTimeout(async () => {
       try {
         const id = `diagram-${Date.now()}`;
         const result = await mermaid.render(id, code);
-        if (!cancelled) {
+        if (!cancelled && renderSequenceRef.current === renderSequence) {
           const prepared = prepareSvgForSharpZoom(result.svg);
           setSvg(prepared.svg);
           setSvgSize(prepared.size);
           setError("");
+          setIsRendering(false);
         }
       } catch (renderError) {
-        if (!cancelled) {
+        if (!cancelled && renderSequenceRef.current === renderSequence) {
           setError(renderError instanceof Error ? renderError.message : "Mermaid syntax error");
+          setIsRendering(false);
         }
       }
     }, 220);
