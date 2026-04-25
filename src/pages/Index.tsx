@@ -71,6 +71,14 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
   return { svg: svgElement.outerHTML, size: { width, height } };
 };
 
+const applyLayoutToSource = (source: string, layout: LayoutRenderer) => {
+  if (layout !== "elk") {
+    return source.replace(/^\s*flowchart-elk\b/i, "flowchart");
+  }
+
+  return source.replace(/^(\s*)(flowchart|graph)\b/i, "$1flowchart-elk");
+};
+
 mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
@@ -102,7 +110,7 @@ const Index = () => {
     const timer = window.setTimeout(async () => {
       try {
         const id = `diagram-${Date.now()}`;
-        const result = await mermaid.render(id, code);
+        const result = await mermaid.render(id, applyLayoutToSource(code, layout));
         if (!cancelled && renderSequenceRef.current === renderSequence) {
           const prepared = prepareSvgForSharpZoom(result.svg);
           setSvg(prepared.svg);
