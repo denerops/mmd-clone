@@ -33,6 +33,9 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
 
   svgElement.setAttribute("width", "100%");
   svgElement.setAttribute("height", "100%");
+  svgElement.style.removeProperty("max-width");
+  svgElement.style.removeProperty("width");
+  svgElement.style.removeProperty("height");
   svgElement.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svgElement.setAttribute("shape-rendering", "geometricPrecision");
   svgElement.setAttribute("text-rendering", "geometricPrecision");
