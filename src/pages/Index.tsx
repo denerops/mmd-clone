@@ -1,6 +1,6 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
-import { Download, Focus, Minus, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles } from "lucide-react";
+import { Download, Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { toast } from "sonner";
@@ -17,6 +17,34 @@ const initialDiagram = `flowchart LR
   classDef calm fill:#eef2ff,stroke:#6366f1,color:#111827
   class A,E focus
   class B,C,D,F calm`;
+
+type LayoutRenderer = "dagre-wrapper" | "elk";
+type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral";
+
+const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
+  startOnLoad: false,
+  securityLevel: "loose" as const,
+  maxTextSize: 5_000_000,
+  maxEdges: 100_000,
+  flowchart: {
+    defaultRenderer: layout,
+  },
+  theme,
+  themeVariables:
+    theme === "base"
+      ? {
+          primaryColor: "#ccfbf1",
+          primaryTextColor: "#102027",
+          primaryBorderColor: "#14b8a6",
+          lineColor: "#475569",
+          secondaryColor: "#eef2ff",
+          tertiaryColor: "#f8fafc",
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        }
+      : {
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        },
+});
 
 const prepareSvgForSharpZoom = (rawSvg: string) => {
   const parser = new DOMParser();
@@ -43,25 +71,7 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
   return { svg: svgElement.outerHTML, size: { width, height } };
 };
 
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: "loose",
-  maxTextSize: 5_000_000,
-  maxEdges: 100_000,
-  flowchart: {
-    defaultRenderer: "elk",
-  },
-  theme: "base",
-  themeVariables: {
-    primaryColor: "#ccfbf1",
-    primaryTextColor: "#102027",
-    primaryBorderColor: "#14b8a6",
-    lineColor: "#475569",
-    secondaryColor: "#eef2ff",
-    tertiaryColor: "#f8fafc",
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-  },
-});
+mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
   const [code, setCode] = useState(initialDiagram);
@@ -72,6 +82,9 @@ const Index = () => {
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [handMode, setHandMode] = useState(false);
+  const [layout, setLayout] = useState<LayoutRenderer>("elk");
+  const [diagramTheme, setDiagramTheme] = useState<DiagramTheme>("base");
   const [editorOpen, setEditorOpen] = useState(true);
   const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -84,6 +97,7 @@ const Index = () => {
     let cancelled = false;
     const renderSequence = renderSequenceRef.current + 1;
     renderSequenceRef.current = renderSequence;
+    mermaid.initialize(getMermaidConfig(diagramTheme, layout));
     setIsRendering(true);
     const timer = window.setTimeout(async () => {
       try {
@@ -108,7 +122,7 @@ const Index = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [code, renderKey]);
+  }, [code, renderKey, diagramTheme, layout]);
 
   const exportSvg = () => {
     if (!svg) return;
@@ -135,7 +149,7 @@ const Index = () => {
   };
 
   const handleBoardMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey || event.button !== 0) return;
+    if ((!event.ctrlKey && !handMode) || event.button !== 0) return;
     event.preventDefault();
     setIsPanning(true);
     dragRef.current = { startX: event.clientX, startY: event.clientY, panX: pan.x, panY: pan.y };
@@ -208,6 +222,32 @@ const Index = () => {
         <ResizablePanel defaultSize={64} minSize={30}>
         <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card/90 px-2 py-1.5 shadow-control backdrop-blur md:left-5 md:top-5">
+            <Workflow className="size-4 text-muted-foreground" />
+            <select
+              value={layout}
+              onChange={(event) => setLayout(event.target.value as LayoutRenderer)}
+              aria-label="Change layout"
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="elk">ELK</option>
+              <option value="dagre-wrapper">Dagre</option>
+            </select>
+            <Palette className="size-4 text-muted-foreground" />
+            <select
+              value={diagramTheme}
+              onChange={(event) => setDiagramTheme(event.target.value as DiagramTheme)}
+              aria-label="Change theme"
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="base">Base</option>
+              <option value="default">Default</option>
+              <option value="dark">Dark</option>
+              <option value="forest">Forest</option>
+              <option value="neutral">Neutral</option>
+            </select>
+            <Button variant={handMode ? "secondary" : "ghost"} size="icon" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
+              <Hand />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
               <Minus />
             </Button>
@@ -227,7 +267,7 @@ const Index = () => {
             onMouseMove={handleBoardMouseMove}
             onMouseUp={stopPanning}
             onMouseLeave={stopPanning}
-            className={`board-grid relative h-full overflow-hidden animate-grid-drift ${isPanning ? "cursor-grabbing select-none" : "cursor-default"}`}
+            className={`board-grid relative h-full overflow-hidden animate-grid-drift ${isPanning ? "cursor-grabbing select-none" : handMode ? "cursor-grab" : "cursor-default"}`}
           >
             <div className="absolute inset-0 animate-fade-up">
               {isRendering && (
