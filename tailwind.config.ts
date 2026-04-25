@@ -19,9 +19,20 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        editor: {
+          DEFAULT: "hsl(var(--editor))",
+          foreground: "hsl(var(--editor-foreground))",
+          line: "hsl(var(--editor-line))",
+        },
+        board: {
+          DEFAULT: "hsl(var(--board))",
+          grid: "hsl(var(--board-grid))",
+          foreground: "hsl(var(--board-foreground))",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -63,6 +74,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        board: "var(--shadow-board)",
+        control: "var(--shadow-control)",
+      },
+      backgroundImage: {
+        surface: "var(--gradient-surface)",
+        board: "var(--gradient-board)",
+        brand: "var(--gradient-brand)",
+      },
       keyframes: {
         "accordion-down": {
           from: {
@@ -80,10 +100,20 @@ export default {
             height: "0",
           },
         },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "grid-drift": {
+          from: { backgroundPosition: "0 0" },
+          to: { backgroundPosition: "48px 48px" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-up": "fade-up 0.35s ease-out both",
+        "grid-drift": "grid-drift 18s linear infinite",
       },
     },
   },
