@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import { Download, Focus, Minus, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { toast } from "sonner";
 
@@ -39,9 +38,12 @@ const Index = () => {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(100);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
   const [editorOpen, setEditorOpen] = useState(true);
   const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
 
@@ -79,6 +81,36 @@ const Index = () => {
     URL.revokeObjectURL(url);
     toast.success("SVG exported in high resolution");
   };
+
+  const adjustZoom = (delta: number) => {
+    setZoom((value) => Math.max(1, Math.round((value + delta) * 100) / 100));
+  };
+
+  const handleBoardWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    const step = Math.max(4, zoom * 0.08);
+    adjustZoom(direction * step);
+  };
+
+  const handleBoardMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey || event.button !== 0) return;
+    event.preventDefault();
+    setIsPanning(true);
+    dragRef.current = { startX: event.clientX, startY: event.clientY, panX: pan.x, panY: pan.y };
+  };
+
+  const handleBoardMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    event.preventDefault();
+    setPan({
+      x: dragRef.current.panX + event.clientX - dragRef.current.startX,
+      y: dragRef.current.panY + event.clientY - dragRef.current.startY,
+    });
+  };
+
+  const stopPanning = () => setIsPanning(false);
 
   return (
     <main className="min-h-screen overflow-hidden bg-surface text-foreground">
@@ -136,24 +168,31 @@ const Index = () => {
         <ResizablePanel defaultSize={64} minSize={30}>
         <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card/90 px-2 py-1.5 shadow-control backdrop-blur md:left-5 md:top-5">
-            <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.max(25, value - 10))} aria-label="Zoom out">
+            <Button variant="ghost" size="icon" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
               <Minus />
             </Button>
-            <Slider value={[zoom]} min={25} max={220} step={5} onValueChange={([value]) => setZoom(value)} className="w-28 md:w-40" />
-            <Button variant="ghost" size="icon" onClick={() => setZoom((value) => Math.min(220, value + 10))} aria-label="Zoom in">
+            <Button variant="ghost" size="icon" onClick={() => adjustZoom(10)} aria-label="Zoom in">
               <Plus />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setZoom(100)} aria-label="Reset zoom">
+            <Button variant="ghost" size="icon" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
               <Focus />
             </Button>
             <span className="w-12 text-right text-xs font-medium text-muted-foreground">{zoom}%</span>
           </div>
 
-          <div ref={boardRef} className="board-grid h-full overflow-auto p-6 pt-24 animate-grid-drift md:p-10 md:pt-28">
+          <div
+            ref={boardRef}
+            onWheel={handleBoardWheel}
+            onMouseDown={handleBoardMouseDown}
+            onMouseMove={handleBoardMouseMove}
+            onMouseUp={stopPanning}
+            onMouseLeave={stopPanning}
+            className={`board-grid h-full overflow-hidden p-6 pt-24 animate-grid-drift md:p-10 md:pt-28 ${isPanning ? "cursor-grabbing select-none" : "cursor-default"}`}
+          >
             <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
               <div
                 className="origin-center transition-transform duration-200 [&_svg]:h-auto [&_svg]:max-w-none [&_svg]:overflow-visible"
-                style={{ transform: `scale(${zoom / 100})` }}
+                style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom / 100})` }}
               >
                 {error ? (
                   <pre className="max-w-[min(720px,72vw)] rounded-md border border-border bg-card/95 p-5 text-sm leading-6 text-destructive shadow-control backdrop-blur whitespace-pre-wrap">{error}</pre>
