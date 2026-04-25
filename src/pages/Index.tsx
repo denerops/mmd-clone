@@ -46,6 +46,8 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
 mermaid.initialize({
   startOnLoad: false,
   securityLevel: "loose",
+  maxTextSize: 5_000_000,
+  maxEdges: 100_000,
   theme: "base",
   themeVariables: {
     primaryColor: "#ccfbf1",
@@ -63,6 +65,7 @@ const Index = () => {
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
+  const [isRendering, setIsRendering] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -70,24 +73,30 @@ const Index = () => {
   const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
+  const renderSequenceRef = useRef(0);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
 
   useEffect(() => {
     let cancelled = false;
+    const renderSequence = renderSequenceRef.current + 1;
+    renderSequenceRef.current = renderSequence;
+    setIsRendering(true);
     const timer = window.setTimeout(async () => {
       try {
         const id = `diagram-${Date.now()}`;
         const result = await mermaid.render(id, code);
-        if (!cancelled) {
+        if (!cancelled && renderSequenceRef.current === renderSequence) {
           const prepared = prepareSvgForSharpZoom(result.svg);
           setSvg(prepared.svg);
           setSvgSize(prepared.size);
           setError("");
+          setIsRendering(false);
         }
       } catch (renderError) {
-        if (!cancelled) {
+        if (!cancelled && renderSequenceRef.current === renderSequence) {
           setError(renderError instanceof Error ? renderError.message : "Mermaid syntax error");
+          setIsRendering(false);
         }
       }
     }, 220);
@@ -218,6 +227,11 @@ const Index = () => {
             className={`board-grid h-full overflow-hidden p-6 pt-24 animate-grid-drift md:p-10 md:pt-28 ${isPanning ? "cursor-grabbing select-none" : "cursor-default"}`}
           >
             <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
+              {isRendering && (
+                <div className="absolute right-3 top-3 rounded-md border border-border bg-card/90 px-3 py-2 text-xs font-medium text-muted-foreground shadow-control backdrop-blur md:right-5 md:top-5">
+                  Rendering large diagram…
+                </div>
+              )}
               <div
                 className="origin-center transition-[width,height,transform] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
                 style={{
@@ -226,12 +240,17 @@ const Index = () => {
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
                 }}
               >
-                {error ? (
+                {error && !svg ? (
                   <pre className="max-w-[min(720px,72vw)] rounded-md border border-border bg-card/95 p-5 text-sm leading-6 text-destructive shadow-control backdrop-blur whitespace-pre-wrap">{error}</pre>
                 ) : (
                   <div className="h-full w-full" dangerouslySetInnerHTML={{ __html: svg }} />
                 )}
               </div>
+              {error && svg && (
+                <pre className="absolute bottom-3 left-3 max-w-[min(720px,70vw)] rounded-md border border-border bg-card/95 p-4 text-xs leading-5 text-destructive shadow-control backdrop-blur whitespace-pre-wrap md:bottom-5 md:left-5">
+                  {error}
+                </pre>
+              )}
             </div>
           </div>
         </section>
