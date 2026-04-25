@@ -18,6 +18,28 @@ const initialDiagram = `flowchart LR
   class A,E focus
   class B,C,D,F calm`;
 
+const prepareSvgForSharpZoom = (rawSvg: string) => {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(rawSvg, "image/svg+xml");
+  const svgElement = document.querySelector("svg");
+
+  if (!svgElement) {
+    return { svg: rawSvg, size: { width: 900, height: 520 } };
+  }
+
+  const viewBox = svgElement.getAttribute("viewBox")?.split(/\s+/).map(Number);
+  const width = viewBox?.[2] || Number.parseFloat(svgElement.getAttribute("width") || "900") || 900;
+  const height = viewBox?.[3] || Number.parseFloat(svgElement.getAttribute("height") || "520") || 520;
+
+  svgElement.setAttribute("width", "100%");
+  svgElement.setAttribute("height", "100%");
+  svgElement.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svgElement.setAttribute("shape-rendering", "geometricPrecision");
+  svgElement.setAttribute("text-rendering", "geometricPrecision");
+
+  return { svg: svgElement.outerHTML, size: { width, height } };
+};
+
 mermaid.initialize({
   startOnLoad: false,
   securityLevel: "loose",
@@ -36,6 +58,7 @@ mermaid.initialize({
 const Index = () => {
   const [code, setCode] = useState(initialDiagram);
   const [svg, setSvg] = useState("");
+  const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -54,7 +77,9 @@ const Index = () => {
         const id = `diagram-${Date.now()}`;
         const result = await mermaid.render(id, code);
         if (!cancelled) {
-          setSvg(result.svg);
+          const prepared = prepareSvgForSharpZoom(result.svg);
+          setSvg(prepared.svg);
+          setSvgSize(prepared.size);
           setError("");
         }
       } catch (renderError) {
@@ -191,8 +216,12 @@ const Index = () => {
           >
             <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
               <div
-                className="origin-center transition-transform duration-200 [&_svg]:h-auto [&_svg]:max-w-none [&_svg]:overflow-visible"
-                style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom / 100})` }}
+                className="origin-center transition-[width,height,transform] duration-200 [&_svg]:overflow-visible"
+                style={{
+                  width: `${svgSize.width * (zoom / 100)}px`,
+                  height: `${svgSize.height * (zoom / 100)}px`,
+                  transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
+                }}
               >
                 {error ? (
                   <pre className="max-w-[min(720px,72vw)] rounded-md border border-border bg-card/95 p-5 text-sm leading-6 text-destructive shadow-control backdrop-blur whitespace-pre-wrap">{error}</pre>
