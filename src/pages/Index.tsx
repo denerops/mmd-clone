@@ -219,7 +219,7 @@ const Index = () => {
           >
             <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
               <div
-                className="origin-center transition-[width,height,transform] duration-200 [&_svg]:overflow-visible"
+                className="origin-center transition-[width,height,transform] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
                 style={{
                   width: `${svgSize.width * (zoom / 100)}px`,
                   height: `${svgSize.height * (zoom / 100)}px`,
@@ -229,7 +229,7 @@ const Index = () => {
                 {error ? (
                   <pre className="max-w-[min(720px,72vw)] rounded-md border border-border bg-card/95 p-5 text-sm leading-6 text-destructive shadow-control backdrop-blur whitespace-pre-wrap">{error}</pre>
                 ) : (
-                  <div dangerouslySetInnerHTML={{ __html: svg }} />
+                  <div className="h-full w-full" dangerouslySetInnerHTML={{ __html: svg }} />
                 )}
               </div>
             </div>
