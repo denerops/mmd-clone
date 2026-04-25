@@ -113,7 +113,7 @@ const Index = () => {
   const stopPanning = () => setIsPanning(false);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-surface text-foreground">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-surface text-foreground">
       <header className="flex h-14 items-center justify-between border-b border-border/80 bg-card/80 px-3 shadow-control backdrop-blur md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-brand text-primary-foreground shadow-control">
@@ -140,7 +140,7 @@ const Index = () => {
         </div>
       </header>
 
-      <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-3.5rem)]">
+      <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
         {editorOpen && (
           <>
             <ResizablePanel defaultSize={36} minSize={24} maxSize={58} className="min-w-[280px]">
