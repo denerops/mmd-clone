@@ -206,46 +206,48 @@ const Index = () => {
 
         <ResizablePanel defaultSize={editorOpen ? 64 : 100} minSize={30}>
         <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
-          <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card/90 px-2 py-1.5 shadow-control backdrop-blur md:left-5 md:top-5">
-            <Button variant="ghost" size="icon" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
+          <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
+            <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
               {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
             </Button>
-            <Workflow className="size-4 text-muted-foreground" />
+            <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+            <Workflow className="size-4 text-foreground/80" />
             <select
               value={layout}
               onChange={(event) => setLayout(event.target.value as LayoutRenderer)}
               aria-label="Change layout"
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
             >
-              <option value="elk">ELK</option>
-              <option value="dagre-wrapper">Dagre</option>
+              <option value="elk" className="bg-background">ELK</option>
+              <option value="dagre-wrapper" className="bg-background">Dagre</option>
             </select>
-            <Palette className="size-4 text-muted-foreground" />
+            <Palette className="size-4 text-foreground/80" />
             <select
               value={diagramTheme}
               onChange={(event) => setDiagramTheme(event.target.value as DiagramTheme)}
               aria-label="Change theme"
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
             >
-              <option value="base">Base</option>
-              <option value="default">Default</option>
-              <option value="dark">Dark</option>
-              <option value="forest">Forest</option>
-              <option value="neutral">Neutral</option>
+              <option value="base" className="bg-background">Base</option>
+              <option value="default" className="bg-background">Default</option>
+              <option value="dark" className="bg-background">Dark</option>
+              <option value="forest" className="bg-background">Forest</option>
+              <option value="neutral" className="bg-background">Neutral</option>
             </select>
-            <Button variant={handMode ? "secondary" : "ghost"} size="icon" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
+            <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+            <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
               <Hand />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
+            <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
               <Minus />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => adjustZoom(10)} aria-label="Zoom in">
+            <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(10)} aria-label="Zoom in">
               <Plus />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
+            <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
               <Focus />
             </Button>
-            <span className="w-12 text-right text-xs font-medium text-muted-foreground">{zoom}%</span>
+            <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
           </div>
 
           <div
