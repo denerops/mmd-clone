@@ -133,12 +133,35 @@ const Index = () => {
     };
   }, [code, diagramTheme, layout]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        setHandMode((value) => !value);
+      } else if (event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        setEditorOpen((value) => !value);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const adjustZoom = (delta: number) => {
     setZoom((value) => Math.max(1, Math.round((value + delta) * 100) / 100));
   };
 
   const handleBoardWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey) return;
+    if (!event.ctrlKey && !handMode) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     const step = Math.max(4, zoom * 0.08);
