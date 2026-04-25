@@ -1,5 +1,6 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
+import elkLayouts from "@mermaid-js/layout-elk";
 import { Download, Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -26,6 +27,7 @@ const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
   securityLevel: "loose" as const,
   maxTextSize: 5_000_000,
   maxEdges: 100_000,
+  layout: layout === "elk" ? "elk" : "dagre",
   flowchart: {
     defaultRenderer: layout,
   },
@@ -79,6 +81,7 @@ const applyLayoutToSource = (source: string, layout: LayoutRenderer) => {
   return source.replace(/^(\s*)(flowchart|graph)\b/i, "$1flowchart-elk");
 };
 
+mermaid.registerLayoutLoaders(elkLayouts);
 mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
