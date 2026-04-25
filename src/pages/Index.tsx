@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Focus, Hand, Minus, Palette, Plus, Workflow } from "lucide-react";
+import { Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
@@ -95,6 +95,7 @@ const Index = () => {
   const [handMode, setHandMode] = useState(false);
   const [layout, setLayout] = useState<LayoutRenderer>("elk");
   const [diagramTheme, setDiagramTheme] = useState<DiagramTheme>("base");
+  const [editorOpen, setEditorOpen] = useState(true);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
   const renderSequenceRef = useRef(0);
@@ -165,29 +166,50 @@ const Index = () => {
   return (
     <main className="flex h-full min-h-0 flex-col overflow-hidden bg-surface text-foreground">
       <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize={36} minSize={24} maxSize={58} className="min-w-[280px]">
-          <aside className="flex h-full min-h-0 flex-col bg-editor text-editor-foreground">
-            <div className="flex h-11 items-center justify-between border-b border-editor-line px-4">
-              <span className="text-xs font-medium uppercase tracking-[0.18em] text-editor-foreground/70">Code</span>
-              <span className="rounded-sm bg-editor-line px-2 py-1 text-xs text-editor-foreground/70">{lineCount} lines</span>
-            </div>
-            <textarea
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              spellCheck={false}
-              aria-label="Mermaid code editor"
-              className="min-h-0 flex-1 resize-none bg-editor p-4 text-sm leading-6 text-editor-foreground outline-none selection:bg-primary/35"
-            />
-            <div className="border-t border-editor-line px-4 py-3 text-xs text-editor-foreground/65">
-              {error ? <span className="text-destructive-foreground">Syntax needs attention</span> : <span>Compatible with Mermaid diagrams</span>}
-            </div>
-          </aside>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
+        {editorOpen && (
+          <>
+            <ResizablePanel defaultSize={36} minSize={24} maxSize={58} className="min-w-[300px]">
+              <aside className="flex h-full min-h-0 flex-col border-r border-editor-line bg-editor text-editor-foreground shadow-board">
+                <div className="flex h-14 items-center justify-between border-b border-editor-line bg-editor/95 px-4">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-editor-foreground/80">Mermaid source</div>
+                    <div className="mt-0.5 text-xs text-editor-foreground/45">Live syntax preview</div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setEditorOpen(false)} aria-label="Collapse editor" className="text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground">
+                    <PanelLeftClose />
+                  </Button>
+                </div>
+                <div className="flex min-h-0 flex-1">
+                  <div className="select-none border-r border-editor-line bg-editor-line/35 px-3 py-4 text-right text-xs leading-6 text-editor-foreground/35">
+                    {Array.from({ length: lineCount }, (_, index) => (
+                      <div key={index}>{index + 1}</div>
+                    ))}
+                  </div>
+                  <textarea
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    spellCheck={false}
+                    aria-label="Mermaid code editor"
+                    className="min-h-0 flex-1 resize-none bg-editor px-4 py-4 text-sm leading-6 text-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35"
+                    style={{ tabSize: 2 }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-editor-line bg-editor/95 px-4 py-3 text-xs text-editor-foreground/65">
+                  {error ? <span className="font-medium text-destructive-foreground">Syntax needs attention</span> : <span>Ready</span>}
+                  <span className="rounded-sm bg-editor-line px-2 py-1 text-editor-foreground/70">{lineCount} lines</span>
+                </div>
+              </aside>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+          </>
+        )}
 
-        <ResizablePanel defaultSize={64} minSize={30}>
+        <ResizablePanel defaultSize={editorOpen ? 64 : 100} minSize={30}>
         <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card/90 px-2 py-1.5 shadow-control backdrop-blur md:left-5 md:top-5">
+            <Button variant="ghost" size="icon" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
+              {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+            </Button>
             <Workflow className="size-4 text-muted-foreground" />
             <select
               value={layout}
