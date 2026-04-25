@@ -18,7 +18,7 @@ const initialDiagram = `flowchart LR
   class A,E focus
   class B,C,D,F calm`;
 
-type LayoutRenderer = "dagre" | "elk";
+type LayoutRenderer = "dagre-wrapper" | "elk";
 type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral";
 
 const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
