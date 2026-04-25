@@ -18,6 +18,28 @@ const initialDiagram = `flowchart LR
   class A,E focus
   class B,C,D,F calm`;
 
+const prepareSvgForSharpZoom = (rawSvg: string) => {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(rawSvg, "image/svg+xml");
+  const svgElement = document.querySelector("svg");
+
+  if (!svgElement) {
+    return { svg: rawSvg, size: { width: 900, height: 520 } };
+  }
+
+  const viewBox = svgElement.getAttribute("viewBox")?.split(/\s+/).map(Number);
+  const width = viewBox?.[2] || Number.parseFloat(svgElement.getAttribute("width") || "900") || 900;
+  const height = viewBox?.[3] || Number.parseFloat(svgElement.getAttribute("height") || "520") || 520;
+
+  svgElement.setAttribute("width", "100%");
+  svgElement.setAttribute("height", "100%");
+  svgElement.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svgElement.setAttribute("shape-rendering", "geometricPrecision");
+  svgElement.setAttribute("text-rendering", "geometricPrecision");
+
+  return { svg: svgElement.outerHTML, size: { width, height } };
+};
+
 mermaid.initialize({
   startOnLoad: false,
   securityLevel: "loose",
@@ -36,6 +58,7 @@ mermaid.initialize({
 const Index = () => {
   const [code, setCode] = useState(initialDiagram);
   const [svg, setSvg] = useState("");
+  const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -54,7 +77,9 @@ const Index = () => {
         const id = `diagram-${Date.now()}`;
         const result = await mermaid.render(id, code);
         if (!cancelled) {
-          setSvg(result.svg);
+          const prepared = prepareSvgForSharpZoom(result.svg);
+          setSvg(prepared.svg);
+          setSvgSize(prepared.size);
           setError("");
         }
       } catch (renderError) {
