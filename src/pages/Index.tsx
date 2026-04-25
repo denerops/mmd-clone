@@ -1,10 +1,9 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles, Workflow } from "lucide-react";
+import { Focus, Hand, Minus, Palette, Plus, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { toast } from "sonner";
 
 const initialDiagram = `flowchart LR
   A[Idea] --> B{Shape it}
@@ -96,8 +95,6 @@ const Index = () => {
   const [handMode, setHandMode] = useState(false);
   const [layout, setLayout] = useState<LayoutRenderer>("elk");
   const [diagramTheme, setDiagramTheme] = useState<DiagramTheme>("base");
-  const [editorOpen, setEditorOpen] = useState(true);
-  const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
   const renderSequenceRef = useRef(0);
@@ -133,19 +130,7 @@ const Index = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [code, renderKey, diagramTheme, layout]);
-
-  const exportSvg = () => {
-    if (!svg) return;
-    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "diagram.svg";
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("SVG exported in high resolution");
-  };
+  }, [code, diagramTheme, layout]);
 
   const adjustZoom = (delta: number) => {
     setZoom((value) => Math.max(1, Math.round((value + delta) * 100) / 100));
@@ -179,56 +164,26 @@ const Index = () => {
 
   return (
     <main className="flex h-full min-h-0 flex-col overflow-hidden bg-surface text-foreground">
-      <header className="flex h-14 items-center justify-between border-b border-border/80 bg-card/80 px-3 shadow-control backdrop-blur md:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-brand text-primary-foreground shadow-control">
-            <Sparkles className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-normal md:text-lg">Mermaid Studio</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">Live Mermaid language editor</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="icon" onClick={() => setEditorOpen((value) => !value)} aria-label="Toggle editor">
-            {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setRenderKey((value) => value + 1)}>
-            <RotateCcw />
-            <span className="hidden sm:inline">Render</span>
-          </Button>
-          <Button size="sm" onClick={exportSvg} disabled={!svg}>
-            <Download />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        </div>
-      </header>
-
       <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
-        {editorOpen && (
-          <>
-            <ResizablePanel defaultSize={36} minSize={24} maxSize={58} className="min-w-[280px]">
-              <aside className="flex h-full min-h-0 flex-col bg-editor text-editor-foreground">
-                <div className="flex h-11 items-center justify-between border-b border-editor-line px-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-editor-foreground/70">Code</span>
-                  <span className="rounded-sm bg-editor-line px-2 py-1 text-xs text-editor-foreground/70">{lineCount} lines</span>
-                </div>
-                <textarea
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  spellCheck={false}
-                  aria-label="Mermaid code editor"
-                  className="min-h-0 flex-1 resize-none bg-editor p-4 text-sm leading-6 text-editor-foreground outline-none selection:bg-primary/35"
-                />
-                <div className="border-t border-editor-line px-4 py-3 text-xs text-editor-foreground/65">
-                  {error ? <span className="text-destructive-foreground">Syntax needs attention</span> : <span>Compatible with Mermaid diagrams</span>}
-                </div>
-              </aside>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-          </>
-        )}
+        <ResizablePanel defaultSize={36} minSize={24} maxSize={58} className="min-w-[280px]">
+          <aside className="flex h-full min-h-0 flex-col bg-editor text-editor-foreground">
+            <div className="flex h-11 items-center justify-between border-b border-editor-line px-4">
+              <span className="text-xs font-medium uppercase tracking-[0.18em] text-editor-foreground/70">Code</span>
+              <span className="rounded-sm bg-editor-line px-2 py-1 text-xs text-editor-foreground/70">{lineCount} lines</span>
+            </div>
+            <textarea
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              spellCheck={false}
+              aria-label="Mermaid code editor"
+              className="min-h-0 flex-1 resize-none bg-editor p-4 text-sm leading-6 text-editor-foreground outline-none selection:bg-primary/35"
+            />
+            <div className="border-t border-editor-line px-4 py-3 text-xs text-editor-foreground/65">
+              {error ? <span className="text-destructive-foreground">Syntax needs attention</span> : <span>Compatible with Mermaid diagrams</span>}
+            </div>
+          </aside>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
 
         <ResizablePanel defaultSize={64} minSize={30}>
         <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
