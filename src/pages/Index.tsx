@@ -149,16 +149,16 @@ const Index = () => {
             <span className="w-12 text-right text-xs font-medium text-muted-foreground">{zoom}%</span>
           </div>
 
-          <div ref={boardRef} className="board-grid h-full overflow-auto p-8 pt-24 shadow-board animate-grid-drift md:p-12 md:pt-28">
-            <div className="mx-auto flex min-h-full w-max min-w-full items-center justify-center animate-fade-up">
+          <div ref={boardRef} className="board-grid h-full overflow-auto p-6 pt-24 animate-grid-drift md:p-10 md:pt-28">
+            <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
               <div
-                className="origin-center rounded-md border border-border bg-card p-6 shadow-board transition-transform duration-200 md:p-8"
+                className="origin-center transition-transform duration-200 [&_svg]:h-auto [&_svg]:max-w-none [&_svg]:overflow-visible"
                 style={{ transform: `scale(${zoom / 100})` }}
               >
                 {error ? (
-                  <pre className="max-w-[min(720px,72vw)] whitespace-pre-wrap text-sm leading-6 text-destructive">{error}</pre>
+                  <pre className="max-w-[min(720px,72vw)] rounded-md border border-border bg-card/95 p-5 text-sm leading-6 text-destructive shadow-control backdrop-blur whitespace-pre-wrap">{error}</pre>
                 ) : (
-                  <div className="max-w-none [&_svg]:h-auto [&_svg]:max-w-none" dangerouslySetInnerHTML={{ __html: svg }} />
+                  <div dangerouslySetInnerHTML={{ __html: svg }} />
                 )}
               </div>
             </div>
