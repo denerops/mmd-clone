@@ -82,6 +82,9 @@ const Index = () => {
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [handMode, setHandMode] = useState(false);
+  const [layout, setLayout] = useState<LayoutRenderer>("elk");
+  const [diagramTheme, setDiagramTheme] = useState<DiagramTheme>("base");
   const [editorOpen, setEditorOpen] = useState(true);
   const [renderKey, setRenderKey] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -94,6 +97,7 @@ const Index = () => {
     let cancelled = false;
     const renderSequence = renderSequenceRef.current + 1;
     renderSequenceRef.current = renderSequence;
+    mermaid.initialize(getMermaidConfig(diagramTheme, layout));
     setIsRendering(true);
     const timer = window.setTimeout(async () => {
       try {
@@ -118,7 +122,7 @@ const Index = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [code, renderKey]);
+  }, [code, renderKey, diagramTheme, layout]);
 
   const exportSvg = () => {
     if (!svg) return;
@@ -145,7 +149,7 @@ const Index = () => {
   };
 
   const handleBoardMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey || event.button !== 0) return;
+    if ((!event.ctrlKey && !handMode) || event.button !== 0) return;
     event.preventDefault();
     setIsPanning(true);
     dragRef.current = { startX: event.clientX, startY: event.clientY, panX: pan.x, panY: pan.y };
