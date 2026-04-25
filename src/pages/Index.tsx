@@ -1,6 +1,6 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
-import { Download, Focus, Minus, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles } from "lucide-react";
+import { Download, Focus, Hand, Minus, Palette, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Sparkles, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { toast } from "sonner";
@@ -17,6 +17,34 @@ const initialDiagram = `flowchart LR
   classDef calm fill:#eef2ff,stroke:#6366f1,color:#111827
   class A,E focus
   class B,C,D,F calm`;
+
+type LayoutRenderer = "dagre" | "elk";
+type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral";
+
+const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
+  startOnLoad: false,
+  securityLevel: "loose" as const,
+  maxTextSize: 5_000_000,
+  maxEdges: 100_000,
+  flowchart: {
+    defaultRenderer: layout,
+  },
+  theme,
+  themeVariables:
+    theme === "base"
+      ? {
+          primaryColor: "#ccfbf1",
+          primaryTextColor: "#102027",
+          primaryBorderColor: "#14b8a6",
+          lineColor: "#475569",
+          secondaryColor: "#eef2ff",
+          tertiaryColor: "#f8fafc",
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        }
+      : {
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        },
+});
 
 const prepareSvgForSharpZoom = (rawSvg: string) => {
   const parser = new DOMParser();
@@ -43,25 +71,7 @@ const prepareSvgForSharpZoom = (rawSvg: string) => {
   return { svg: svgElement.outerHTML, size: { width, height } };
 };
 
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: "loose",
-  maxTextSize: 5_000_000,
-  maxEdges: 100_000,
-  flowchart: {
-    defaultRenderer: "elk",
-  },
-  theme: "base",
-  themeVariables: {
-    primaryColor: "#ccfbf1",
-    primaryTextColor: "#102027",
-    primaryBorderColor: "#14b8a6",
-    lineColor: "#475569",
-    secondaryColor: "#eef2ff",
-    tertiaryColor: "#f8fafc",
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-  },
-});
+mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
   const [code, setCode] = useState(initialDiagram);
