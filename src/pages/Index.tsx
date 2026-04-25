@@ -224,20 +224,20 @@ const Index = () => {
             onMouseMove={handleBoardMouseMove}
             onMouseUp={stopPanning}
             onMouseLeave={stopPanning}
-            className={`board-grid h-full overflow-hidden p-6 pt-24 animate-grid-drift md:p-10 md:pt-28 ${isPanning ? "cursor-grabbing select-none" : "cursor-default"}`}
+            className={`board-grid relative h-full overflow-hidden animate-grid-drift ${isPanning ? "cursor-grabbing select-none" : "cursor-default"}`}
           >
-            <div className="flex min-h-full min-w-full items-center justify-center animate-fade-up">
+            <div className="absolute inset-0 animate-fade-up">
               {isRendering && (
                 <div className="absolute right-3 top-3 rounded-md border border-border bg-card/90 px-3 py-2 text-xs font-medium text-muted-foreground shadow-control backdrop-blur md:right-5 md:top-5">
                   Rendering large diagram…
                 </div>
               )}
               <div
-                className="origin-center transition-[width,height,transform] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
+                className="absolute left-1/2 top-1/2 origin-center transition-[width,height,transform] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
                 style={{
                   width: `${svgSize.width * (zoom / 100)}px`,
                   height: `${svgSize.height * (zoom / 100)}px`,
-                  transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
+                  transform: `translate3d(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px), 0)`,
                 }}
               >
                 {error && !svg ? (
