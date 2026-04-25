@@ -48,6 +48,9 @@ mermaid.initialize({
   securityLevel: "loose",
   maxTextSize: 5_000_000,
   maxEdges: 100_000,
+  flowchart: {
+    defaultRenderer: "elk",
+  },
   theme: "base",
   themeVariables: {
     primaryColor: "#ccfbf1",
