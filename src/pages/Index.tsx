@@ -125,7 +125,7 @@ const Index = () => {
   const [editorOpen, setEditorOpen] = useState(true);
   const [editorFullScreen, setEditorFullScreen] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const [updateTimeout, setUpdateTimeout] = useState<1 | 2 | 3>(3);
+  const [updateTimeout, setUpdateTimeout] = useState<1 | 2 | 3>(1);
   const [colorPickerTarget, setColorPickerTarget] = useState<{ id: string; x: number; y: number } | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
@@ -174,6 +174,14 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const isPrimaryModifier = event.ctrlKey || event.metaKey;
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        handleSave();
+        return;
+      }
+
       if (
         document.activeElement?.tagName === "TEXTAREA" ||
         document.activeElement?.tagName === "INPUT" ||
@@ -200,7 +208,8 @@ const Index = () => {
   };
 
   const handleBoardWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey && !handMode) return;
+    const isPrimaryModifier = event.ctrlKey || event.metaKey;
+    if (!isPrimaryModifier && !handMode) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     const step = Math.max(4, zoom * 0.08);
@@ -209,7 +218,8 @@ const Index = () => {
 
   const handleBoardMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('.color-picker-menu')) return;
-    if ((!event.ctrlKey && !handMode) || event.button !== 0) return;
+    const isPrimaryModifier = event.ctrlKey || event.metaKey;
+    if ((!isPrimaryModifier && !handMode) || event.button !== 0) return;
     event.preventDefault();
     setIsPanning(true);
     dragRef.current = { startX: event.clientX, startY: event.clientY, panX: pan.x, panY: pan.y };
@@ -392,7 +402,7 @@ const Index = () => {
           <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
             {code !== savedCode && (
               <div className="absolute bottom-8 right-8 z-50 flex items-center rounded-2xl border border-white/30 bg-white/20 p-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95">
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors text-primary" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
                   <Save className="size-5" />
                 </Button>
               </div>
