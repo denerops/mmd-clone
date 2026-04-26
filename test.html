@@ -1,0 +1,23 @@
+
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="diagram-1"></div>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: false });
+    const { svg } = await mermaid.render('diagram-1', 'flowchart-elk LR
+  A[Idea] --> B{Shape it}');
+    const { svg: svg2 } = await mermaid.render('diagram-2', 'flowchart LR
+  A[Idea] --> B{Shape it}');
+    
+    fetch('http://localhost:8888', {
+      method: 'POST',
+      body: JSON.stringify({
+        elk: [...svg.matchAll(/<g[^>]*class="[^"]*node[^"]*"[^>]*id="([^"]+)"/g)].map(m => m[1]),
+        dagre: [...svg2.matchAll(/<g[^>]*class="[^"]*node[^"]*"[^>]*id="([^"]+)"/g)].map(m => m[1])
+      })
+    }).then(() => process.exit(0));
+  </script>
+</body>
+</html>
