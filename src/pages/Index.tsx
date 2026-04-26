@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Focus, Hand, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer } from "lucide-react";
+import { Focus, Hand, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useTheme } from "@/components/theme-provider";
@@ -100,7 +100,18 @@ mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
   const { theme, setTheme } = useTheme();
-  const [code, setCode] = useState(initialDiagram);
+  const [code, setCode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("mermaidCode") || initialDiagram;
+    }
+    return initialDiagram;
+  });
+  const [savedCode, setSavedCode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("mermaidCode") || initialDiagram;
+    }
+    return initialDiagram;
+  });
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
@@ -121,6 +132,11 @@ const Index = () => {
   const renderSequenceRef = useRef(0);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
+
+  const handleSave = () => {
+    localStorage.setItem("mermaidCode", code);
+    setSavedCode(code);
+  };
 
   const renderDiagram = async (currentCode: string, theme: DiagramTheme, currentLayout: LayoutRenderer) => {
     const renderSequence = renderSequenceRef.current + 1;
@@ -374,6 +390,14 @@ const Index = () => {
 
         <ResizablePanel defaultSize={editorOpen ? 64 : 100} minSize={30}>
           <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
+            {code !== savedCode && (
+              <div className="absolute bottom-8 right-8 z-50 flex items-center rounded-2xl border border-white/30 bg-white/20 p-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95">
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors text-primary" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
+                  <Save className="size-5" />
+                </Button>
+              </div>
+            )}
+
             {!editorFullScreen && (
               <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
               <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
