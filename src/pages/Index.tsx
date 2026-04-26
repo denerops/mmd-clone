@@ -374,7 +374,8 @@ const Index = () => {
 
         <ResizablePanel defaultSize={editorOpen ? 64 : 100} minSize={30}>
           <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
-            <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
+            {!editorFullScreen && (
+              <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
               <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
                 {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
               </Button>
@@ -422,6 +423,7 @@ const Index = () => {
               </Button>
               <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
             </div>
+            )}
 
             <div
               ref={boardRef}
