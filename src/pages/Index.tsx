@@ -1,7 +1,9 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus } from "lucide-react";
+import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useTheme } from "@/components/theme-provider";
@@ -238,6 +240,19 @@ const Index = () => {
     setMenuOpen(false);
   };
 
+  const handleShare = () => {
+    try {
+      const compressed = LZString.compressToEncodedURIComponent(code);
+      const url = new URL(window.location.href);
+      url.searchParams.set("s", compressed); // Using 's' for short/shared
+      navigator.clipboard.writeText(url.toString());
+      toast.success("Share link copied to clipboard (compressed)!");
+      setMenuOpen(false);
+    } catch (e) {
+      toast.error("Failed to generate share link");
+    }
+  };
+
   const handleExport = () => {
     const graph = graphs.find((g) => g.id === activeId);
     const data = { name: graph?.name ?? "graph", code, exportedAt: new Date().toISOString() };
@@ -266,6 +281,33 @@ const Index = () => {
     setRenamingId(id);
     setRenameValue(currentName);
   };
+
+  // Check for shared code in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedCode = params.get("s");
+    if (sharedCode) {
+      try {
+        const decompressed = LZString.decompressFromEncodedURIComponent(sharedCode);
+        if (decompressed) {
+          const id = crypto.randomUUID();
+          const sharedGraph = { id, name: "Shared Graph", code: decompressed, updatedAt: Date.now() };
+          const updated = [sharedGraph, ...graphs];
+          persistGraphs(updated);
+          setActiveIdState(id);
+          setActiveId(id);
+          setCode(decompressed);
+          setSavedCode(decompressed);
+          // Clean up URL without reload
+          window.history.replaceState({}, document.title, window.location.pathname);
+          toast.success("Imported shared graph!");
+        }
+      } catch (e) {
+        console.error("Failed to decode shared graph", e);
+        toast.error("Failed to load shared graph");
+      }
+    }
+  }, []);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -542,6 +584,18 @@ const Index = () => {
 
                 <div className="my-1 h-px bg-black/5 dark:bg-white/5" />
 
+                {/* Share */}
+                <button
+                  id="graph-menu-share"
+                  onClick={handleShare}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <Share2 className="size-4 shrink-0 text-foreground/50" />
+                  Share link
+                </button>
+
+                <div className="my-1 h-px bg-black/5 dark:bg-white/5" />
+
                 {/* New */}
                 <button
                   id="graph-menu-new"
@@ -627,7 +681,10 @@ const Index = () => {
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-editor-line bg-editor/95 px-4 py-3 text-xs text-editor-foreground/65">
                   {error ? <span className="font-medium text-destructive-foreground">Syntax needs attention</span> : <span>Ready</span>}
-                  <span className="rounded-sm bg-editor-line px-2 py-1 text-editor-foreground/70">{lineCount} lines</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-sm bg-editor-line px-2 py-1 text-editor-foreground/70">{lineCount} lines</span>
+                    <span className="rounded-sm bg-editor-line px-2 py-1 text-editor-foreground/70">{code.length} characters</span>
+                  </div>
                 </div>
               </aside>
             </ResizablePanel>
