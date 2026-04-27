@@ -189,6 +189,29 @@ const formatSnapshotTime = (timestamp: number) =>
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const shapeOptions = [
+  { id: 'square', label: 'Square', open: '[', close: ']', class: 'rounded-none' },
+  { id: 'rounded', label: 'Rounded', open: '(', close: ')', class: 'rounded-md' },
+  { id: 'stadium', label: 'Stadium', open: '([', close: '])', class: 'rounded-full px-1.5 w-6 h-4' },
+  { id: 'diamond', label: 'Diamond', open: '{', close: '}', class: 'rotate-45 scale-75' },
+  { id: 'hexagon', label: 'Hexagon', open: '{{', close: '}}', class: 'w-5 h-4 border-l-0 border-r-0 relative before:absolute before:inset-0 before:border before:rotate-60 after:absolute after:inset-0 after:border after:-rotate-60' },
+  { id: 'circle', label: 'Circle', open: '((', close: '))', class: 'rounded-full aspect-square' },
+  { id: 'database', label: 'Database', open: '[(', close: ')]', class: 'rounded-sm border-t-2' },
+] as const;
+
+const bracketPairs = [
+  ['[[', ']]'],
+  ['[(', ')]'],
+  ['([', '])'],
+  ['((', '))'],
+  ['[/','/]'],
+  ['[\\', '\\]'],
+  ['{{', '}}'],
+  ['[', ']'],
+  ['(', ')'],
+  ['{', '}'],
+] as const;
+
 type LayoutRenderer = "dagre-wrapper" | "elk";
 type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
 
@@ -308,6 +331,7 @@ const Index = () => {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [updateTimeout, setUpdateTimeout] = useState<1 | 2 | 3>(1);
   const [colorPickerTarget, setColorPickerTarget] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [nodeDraft, setNodeDraft] = useState({ id: "", label: "" });
   const [helpOpen, setHelpOpen] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
@@ -737,37 +761,91 @@ const Index = () => {
     setColorPickerTarget(null);
   };
 
+  const updateNodeDetails = () => {
+    if (!colorPickerTarget) return;
+
+    const previousId = colorPickerTarget.id;
+    const nextId = nodeDraft.id.trim();
+    const nextLabel = nodeDraft.label.trim() || nextId;
+
+    if (!nextId) {
+      setNodeDraft((draft) => ({ ...draft, id: previousId }));
+      return;
+    }
+
+    setCode((prevCode) => {
+      const lines = prevCode.split('\n');
+      let replacedDefinition = false;
+      let idChanged = false;
+      const nodeRegex = new RegExp(`(^|[\\s,;])(${escapeRegExp(previousId)})(?=$|[\\s\\[\\(\\{>])`);
+
+      const nextLines = lines.map((line) => {
+        if (replacedDefinition) return line;
+
+        const match = nodeRegex.exec(line);
+        if (!match) return line;
+
+        const prefix = match[1];
+        const nodeStart = match.index + prefix.length;
+        const labelStart = nodeStart + previousId.length;
+        const rest = line.slice(labelStart);
+        const pair = bracketPairs.find(([open]) => rest.startsWith(open));
+        replacedDefinition = true;
+        idChanged = nextId !== previousId;
+
+        if (!pair) {
+          return `${line.slice(0, nodeStart)}${nextId}[${nextLabel}]${rest}`;
+        }
+
+        const [open, close] = pair;
+        const contentStart = labelStart + open.length;
+        const contentEnd = line.indexOf(close, contentStart);
+
+        if (contentEnd === -1) {
+          return line;
+        }
+
+        return `${line.slice(0, nodeStart)}${nextId}${open}${nextLabel}${close}${line.slice(contentEnd + close.length)}`;
+      });
+
+      let nextCode = nextLines.join('\n');
+
+      if (idChanged) {
+        nextCode = nextCode.split('\n').map((line) => {
+          const styleRegex = new RegExp(`^(\\s*style\\s+)${escapeRegExp(previousId)}(?=\\s+)`);
+          if (styleRegex.test(line)) {
+            return line.replace(styleRegex, `$1${nextId}`);
+          }
+
+          const classMatch = line.match(/^(\s*class\s+)(.+?)(\s+[\w-]+\s*;?\s*)$/);
+          if (!classMatch) return line;
+
+          const nextNodeIds = classMatch[2]
+            .split(',')
+            .map((nodeId) => nodeId.trim() === previousId ? nextId : nodeId.trim())
+            .join(',');
+          return `${classMatch[1]}${nextNodeIds}${classMatch[3]}`;
+        }).join('\n');
+      }
+
+      return nextCode;
+    });
+
+    if (nextId !== previousId) {
+      setColorPickerTarget((target) => target ? { ...target, id: nextId } : target);
+    }
+  };
+
   const handleShapeSelect = (shapeType: string) => {
     if (!colorPickerTarget) return;
     const { id } = colorPickerTarget;
 
-    const shapeBrackets: Record<string, [string, string]> = {
-      square: ['[', ']'],
-      rounded: ['(', ')'],
-      stadium: ['([', '])'],
-      diamond: ['{', '}'],
-      hexagon: ['{{', '}}'],
-      circle: ['((', '))'],
-      database: ['[(', ')]'],
-    };
-
-    const [newOpen, newClose] = shapeBrackets[shapeType] || ['[', ']'];
+    const selectedShape = shapeOptions.find((shape) => shape.id === shapeType) ?? shapeOptions[0];
+    const { open: newOpen, close: newClose } = selectedShape;
 
     setCode((prevCode) => {
       const lines = prevCode.split('\n');
       let replaced = false;
-      const bracketPairs = [
-        ['[[', ']]'],
-        ['[(', ')]'],
-        ['([', '])'],
-        ['((', '))'],
-        ['[/', '/]'],
-        ['[\\', '\\]'],
-        ['{{', '}}'],
-        ['[', ']'],
-        ['(', ')'],
-        ['{', '}'],
-      ] as const;
       const nodeRegex = new RegExp(`(^|[\\s,;])(${escapeRegExp(id)})(?=$|[\\s\\[\\(\\{>])`);
 
       const newLines = lines.map(line => {
@@ -809,13 +887,12 @@ const Index = () => {
     setColorPickerTarget(null);
   };
 
-  const customClasses = useMemo(() => {
+  const classDefinitions = useMemo(() => {
     const classDefs: { name: string, fill: string | null }[] = [];
     const regex = /^\s*classDef\s+([\w-]+)\s+(.+)$/gm;
     let match;
     while ((match = regex.exec(code)) !== null) {
       const name = match[1];
-      if (name.startsWith('color-')) continue;
       const styles = match[2];
       const fillMatch = styles.match(/fill:([^,]+)/);
       classDefs.push({
@@ -825,6 +902,73 @@ const Index = () => {
     }
     return classDefs;
   }, [code]);
+
+  const customClasses = useMemo(
+    () => classDefinitions.filter((classDef) => !classDef.name.startsWith('color-')),
+    [classDefinitions]
+  );
+
+  const selectedNodeState = useMemo(() => {
+    if (!colorPickerTarget) return null;
+
+    const { id } = colorPickerTarget;
+    const nodeRegex = new RegExp(`(^|[\\s,;])(${escapeRegExp(id)})(?=$|[\\s\\[\\(\\{>])`);
+    let shapeId = 'square';
+    let label = id;
+
+    for (const line of code.split('\n')) {
+      const match = nodeRegex.exec(line);
+      if (!match) continue;
+
+      const nodeStart = match.index + match[1].length;
+      const labelStart = nodeStart + match[2].length;
+      const rest = line.slice(labelStart);
+      const pair = bracketPairs.find(([open]) => rest.startsWith(open));
+      const option = pair
+        ? shapeOptions.find((shape) => shape.open === pair[0] && shape.close === pair[1])
+        : null;
+      shapeId = option?.id ?? 'square';
+      if (pair) {
+        const contentStart = labelStart + pair[0].length;
+        const contentEnd = line.indexOf(pair[1], contentStart);
+        if (contentEnd !== -1) {
+          label = line.slice(contentStart, contentEnd);
+        }
+      }
+      break;
+    }
+
+    const assignedClasses: string[] = [];
+    const classLineRegex = /^\s*class\s+(.+?)\s+([\w-]+)\s*;?\s*$/gm;
+    let classMatch;
+    while ((classMatch = classLineRegex.exec(code)) !== null) {
+      const nodeIds = classMatch[1].split(',').map((nodeId) => nodeId.trim());
+      if (nodeIds.includes(id)) {
+        assignedClasses.push(classMatch[2]);
+      }
+    }
+
+    const colorClass = [...assignedClasses].reverse().find((className) => className.startsWith('color-'));
+    const customClass = [...assignedClasses].reverse().find((className) => !className.startsWith('color-'));
+    const styleRegex = new RegExp(`^\\s*style\\s+${escapeRegExp(id)}\\s+(.+)$`, 'm');
+    const styleFill = code.match(styleRegex)?.[1]?.match(/fill:([^,;]+)/)?.[1]?.trim() ?? null;
+    const colorFill = styleFill ?? classDefinitions.find((classDef) => classDef.name === colorClass)?.fill ?? null;
+    const customClassFill = classDefinitions.find((classDef) => classDef.name === customClass)?.fill ?? null;
+
+    return {
+      id,
+      label,
+      shape: shapeOptions.find((shape) => shape.id === shapeId) ?? shapeOptions[0],
+      className: customClass ?? null,
+      colorClass: colorClass ?? null,
+      color: colorFill ?? customClassFill,
+    };
+  }, [classDefinitions, code, colorPickerTarget]);
+
+  useEffect(() => {
+    if (!selectedNodeState) return;
+    setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
+  }, [selectedNodeState?.id, selectedNodeState?.label]);
 
   const nodeColors = [
     "#f87171", "#fb923c", "#fbbf24", "#a3e635", "#4ade80", "#2dd4bf",
@@ -1171,23 +1315,71 @@ const Index = () => {
             >
               {colorPickerTarget && (
                 <div
-                  className="color-picker-menu absolute z-50 flex flex-col gap-2 w-52 p-3 rounded-2xl border border-white/30 bg-white/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.25)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/50 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all animate-in zoom-in-95"
-                  style={{ left: Math.min(colorPickerTarget.x + 10, (boardRef.current?.clientWidth || 500) - 200), top: Math.min(colorPickerTarget.y + 10, (boardRef.current?.clientHeight || 500) - 150) }}
+                  className="color-picker-menu absolute z-50 w-52"
+                  style={{
+                    left: colorPickerTarget.x,
+                    top: colorPickerTarget.y,
+                    transform: "translate(-50%, -50%)",
+                  }}
                 >
-                  <div>
+                  <div
+                    className="flex flex-col gap-2 rounded-2xl border border-white/30 bg-white/50 p-3 shadow-[0_8px_32px_0_rgba(31,38,135,0.25)] backdrop-blur-2xl animate-in fade-in zoom-in-95 dark:border-white/10 dark:bg-black/50 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)]"
+                    style={{ animationDuration: "150ms" }}
+                  >
+                    {selectedNodeState && (
+                    <div className="space-y-2 rounded-xl border border-black/5 bg-white/60 px-3 py-2 text-xs shadow-sm dark:border-white/5 dark:bg-black/40">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Name</label>
+                        <input
+                          value={nodeDraft.id}
+                          onChange={(event) => setNodeDraft((draft) => ({ ...draft, id: event.target.value }))}
+                          onBlur={updateNodeDetails}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") updateNodeDetails();
+                            if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
+                          }}
+                          className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 font-semibold text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Description</label>
+                        <input
+                          value={nodeDraft.label}
+                          onChange={(event) => setNodeDraft((draft) => ({ ...draft, label: event.target.value }))}
+                          onBlur={updateNodeDetails}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") updateNodeDetails();
+                            if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
+                          }}
+                          className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
+                        />
+                      </div>
+                    </div>
+                    )}
+
+                    <div>
                     <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Colors</div>
                     <div className="flex flex-wrap gap-1.5">
                       {nodeColors.map(color => (
                         <button
                           key={color}
-                          className="size-6 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                          className={`size-6 rounded-full border transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${
+                            selectedNodeState?.color?.toLowerCase() === color.toLowerCase()
+                              ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
+                              : "border-black/10 dark:border-white/10"
+                          }`}
                           style={{ backgroundColor: color }}
                           onClick={() => handleClassSelect(`color-${color.replace('#', '')}`, color)}
                           aria-label={`Select color ${color}`}
+                          title={selectedNodeState?.color?.toLowerCase() === color.toLowerCase() ? "Selected color" : `Select color ${color}`}
                         />
                       ))}
                       <button
-                        className="size-6 flex items-center justify-center rounded-full border border-black/10 bg-white/50 dark:border-white/10 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm"
+                        className={`size-6 flex items-center justify-center rounded-full border bg-white/50 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm ${
+                          selectedNodeState && !selectedNodeState.color
+                            ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
+                            : "border-black/10 dark:border-white/10"
+                        }`}
                         onClick={() => handleClassSelect('transparent')}
                         aria-label="Remove style"
                         title="Remove custom style"
@@ -1195,17 +1387,22 @@ const Index = () => {
                         <Minus className="size-3 text-foreground/70" />
                       </button>
                     </div>
-                  </div>
+                    </div>
 
-                  {customClasses.length > 0 && (
+                    {customClasses.length > 0 && (
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
                       <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Diagram Classes</div>
                       <div className="flex flex-wrap gap-1.5 px-1">
                         {customClasses.map(cls => (
                           <button
                             key={cls.name}
-                            className="px-2 py-1 text-[11px] font-medium rounded-lg border border-black/5 bg-white/60 dark:border-white/5 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shadow-sm flex items-center gap-1.5"
+                            className={`px-2 py-1 text-[11px] font-medium rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shadow-sm flex items-center gap-1.5 ${
+                              selectedNodeState?.className === cls.name
+                                ? "border-primary text-primary"
+                                : "border-black/5 dark:border-white/5"
+                            }`}
                             onClick={() => handleClassSelect(cls.name)}
+                            title={selectedNodeState?.className === cls.name ? "Selected class" : cls.name}
                           >
                             {cls.fill && (
                               <span className="size-2.5 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: cls.fill }} />
@@ -1215,29 +1412,26 @@ const Index = () => {
                         ))}
                       </div>
                     </div>
-                  )}
+                    )}
 
-                  <div className="pt-2 border-t border-black/5 dark:border-white/5">
+                    <div className="pt-2 border-t border-black/5 dark:border-white/5">
                     <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { id: 'square', label: 'Square', class: 'rounded-none' },
-                        { id: 'rounded', label: 'Rounded', class: 'rounded-md' },
-                        { id: 'stadium', label: 'Stadium', class: 'rounded-full px-1.5 w-6 h-4' },
-                        { id: 'diamond', label: 'Diamond', class: 'rotate-45 scale-75' },
-                        { id: 'hexagon', label: 'Hexagon', class: 'w-5 h-4 border-l-0 border-r-0 relative before:absolute before:inset-0 before:border before:rotate-60 after:absolute after:inset-0 after:border after:-rotate-60' },
-                        { id: 'circle', label: 'Circle', class: 'rounded-full aspect-square' },
-                        { id: 'database', label: 'Database', class: 'rounded-sm border-t-2' },
-                      ].map(shape => (
+                      {shapeOptions.map(shape => (
                         <button
                           key={shape.id}
-                          className="group relative size-8 flex items-center justify-center rounded-lg border border-black/5 bg-white/60 dark:border-white/5 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                          className={`group relative size-8 flex items-center justify-center rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${
+                            selectedNodeState?.shape.id === shape.id
+                              ? "border-primary ring-2 ring-primary/50"
+                              : "border-black/5 dark:border-white/5"
+                          }`}
                           onClick={() => handleShapeSelect(shape.id)}
-                          title={shape.label}
+                          title={selectedNodeState?.shape.id === shape.id ? `${shape.label} selected` : shape.label}
                         >
-                          <div className={`size-4 border border-foreground/40 group-hover:border-primary transition-colors ${shape.class}`} />
+                          <div className={`size-4 border transition-colors ${selectedNodeState?.shape.id === shape.id ? "border-primary" : "border-foreground/40 group-hover:border-primary"} ${shape.class}`} />
                         </button>
                       ))}
+                    </div>
                     </div>
                   </div>
                 </div>
