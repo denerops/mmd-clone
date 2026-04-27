@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Focus, Hand, HelpCircle, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X } from "lucide-react";
+import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useTheme } from "@/components/theme-provider";
@@ -18,6 +18,54 @@ const initialDiagram = `flowchart LR
   classDef calm fill:#eef2ff,stroke:#6366f1,color:#111827
   class A,E focus
   class B,C,D,F calm`;
+
+// ─── Multi-graph persistence helpers ────────────────────────────────────────
+const GRAPHS_KEY = "mmd-graphs";
+const ACTIVE_KEY = "mmd-active-graph";
+
+type GraphRecord = { id: string; name: string; code: string; updatedAt: number };
+
+const loadGraphs = (): GraphRecord[] => {
+  try {
+    return JSON.parse(localStorage.getItem(GRAPHS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const saveGraphs = (graphs: GraphRecord[]) => {
+  localStorage.setItem(GRAPHS_KEY, JSON.stringify(graphs));
+};
+
+const getActiveId = () => localStorage.getItem(ACTIVE_KEY) || "";
+const setActiveId = (id: string) => localStorage.setItem(ACTIVE_KEY, id);
+
+/** Migrate legacy single-graph save if present */
+const migrateLegacy = (): { graphs: GraphRecord[]; activeId: string } => {
+  const legacy = localStorage.getItem("mermaidCode");
+  let graphs = loadGraphs();
+  let activeId = getActiveId();
+
+  if (legacy && graphs.length === 0) {
+    const id = crypto.randomUUID();
+    graphs = [{ id, name: "My Graph", code: legacy, updatedAt: Date.now() }];
+    saveGraphs(graphs);
+    setActiveId(id);
+    activeId = id;
+    localStorage.removeItem("mermaidCode");
+  } else if (graphs.length === 0) {
+    const id = crypto.randomUUID();
+    graphs = [{ id, name: "My Graph", code: initialDiagram, updatedAt: Date.now() }];
+    saveGraphs(graphs);
+    setActiveId(id);
+    activeId = id;
+  } else if (!activeId || !graphs.find((g) => g.id === activeId)) {
+    activeId = graphs[0].id;
+    setActiveId(activeId);
+  }
+
+  return { graphs, activeId };
+};
 
 type LayoutRenderer = "dagre-wrapper" | "elk";
 type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
@@ -100,18 +148,25 @@ mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
   const { theme, setTheme } = useTheme();
-  const [code, setCode] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("mermaidCode") || initialDiagram;
-    }
-    return initialDiagram;
-  });
-  const [savedCode, setSavedCode] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("mermaidCode") || initialDiagram;
-    }
-    return initialDiagram;
-  });
+
+  // ── Multi-graph state ────────────────────────────────────────────────────
+  const [graphs, setGraphs] = useState<GraphRecord[]>(() => migrateLegacy().graphs);
+  const [activeId, setActiveIdState] = useState<string>(() => migrateLegacy().activeId);
+
+  const activeGraph = graphs.find((g) => g.id === activeId) ?? graphs[0];
+
+  const [code, setCode] = useState(() => activeGraph?.code ?? initialDiagram);
+  const [savedCode, setSavedCode] = useState(() => activeGraph?.code ?? initialDiagram);
+
+  // ── Menu state ───────────────────────────────────────────────────────────
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [newGraphName, setNewGraphName] = useState("");
+  const [newGraphModalOpen, setNewGraphModalOpen] = useState(false);
+  const [loadGraphModalOpen, setLoadGraphModalOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
   const [error, setError] = useState("");
@@ -134,10 +189,96 @@ const Index = () => {
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
 
+  // ── Multi-graph helpers ──────────────────────────────────────────────────
+  const persistGraphs = (updated: GraphRecord[]) => {
+    setGraphs(updated);
+    saveGraphs(updated);
+  };
+
+  const switchGraph = (id: string) => {
+    // Save current before switching
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+    );
+    persistGraphs(updated);
+    const target = updated.find((g) => g.id === id);
+    if (!target) return;
+    setActiveIdState(id);
+    setActiveId(id);
+    setCode(target.code);
+    setSavedCode(target.code);
+    setMenuOpen(false);
+    setLoadGraphModalOpen(false);
+  };
+
   const handleSave = () => {
-    localStorage.setItem("mermaidCode", code);
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+    );
+    persistGraphs(updated);
     setSavedCode(code);
   };
+
+  const handleNewGraph = () => {
+    const name = newGraphName.trim() || "Untitled Graph";
+    const id = crypto.randomUUID();
+    // Save current first
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+    );
+    const newGraph: GraphRecord = { id, name, code: initialDiagram, updatedAt: Date.now() };
+    const next = [...updated, newGraph];
+    persistGraphs(next);
+    setActiveIdState(id);
+    setActiveId(id);
+    setCode(initialDiagram);
+    setSavedCode(initialDiagram);
+    setNewGraphName("");
+    setNewGraphModalOpen(false);
+    setMenuOpen(false);
+  };
+
+  const handleExport = () => {
+    const graph = graphs.find((g) => g.id === activeId);
+    const data = { name: graph?.name ?? "graph", code, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(graph?.name ?? "graph").replace(/\s+/g, "-").toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMenuOpen(false);
+  };
+
+  const handleRename = (id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    const updated = graphs.map((g) => (g.id === id ? { ...g, name: trimmed, updatedAt: Date.now() } : g));
+    persistGraphs(updated);
+    setRenamingId(null);
+  };
+
+  const startRenaming = (id: string, currentName: string) => {
+    setRenamingId(id);
+    setRenameValue(currentName);
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: globalThis.MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setRenamingId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   const renderDiagram = async (currentCode: string, theme: DiagramTheme, currentLayout: LayoutRenderer) => {
     const renderSequence = renderSequenceRef.current + 1;
@@ -332,6 +473,101 @@ const Index = () => {
 
   return (
     <main className="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface text-foreground">
+
+      {/* ── Floating Top-Right Menu ─────────────────────────────────────── */}
+      {!editorFullScreen && (
+        <div ref={menuRef} className="absolute top-4 right-4 z-[60]">
+          {/* Toggle button */}
+          <button
+            id="graph-menu-toggle"
+            onClick={() => { setMenuOpen((v) => !v); }}
+            aria-label="Toggle graph menu"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/30 bg-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] backdrop-blur-xl transition-all hover:bg-white/35 active:scale-95 dark:border-white/10 dark:bg-black/30 dark:hover:bg-black/50"
+          >
+            {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          </button>
+
+          {/* Dropdown panel */}
+          {menuOpen && (
+            <div
+              className="absolute right-0 top-12 w-56 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-white/30 bg-white/60 shadow-[0_8px_40px_0_rgba(31,38,135,0.18)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70"
+              style={{ animationDuration: "150ms" }}
+            >
+              {/* Graph name header */}
+              <div className="border-b border-black/5 px-4 py-3 dark:border-white/5">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/40">Active graph</p>
+                {renamingId === activeId ? (
+                  <input
+                    autoFocus
+                    className="mt-0.5 w-full bg-transparent text-sm font-semibold text-foreground outline-none border-b border-primary"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => handleRename(activeId, renameValue)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRename(activeId, renameValue);
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                  />
+                ) : (
+                  <p 
+                    className="mt-0.5 truncate text-sm font-semibold text-foreground cursor-text hover:text-primary transition-colors"
+                    onClick={() => startRenaming(activeId, activeGraph?.name ?? "")}
+                    title="Click to rename"
+                  >
+                    {activeGraph?.name ?? "—"}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-2 space-y-0.5">
+                {/* Save */}
+                <button
+                  id="graph-menu-save"
+                  onClick={handleSave}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <Save className="size-4 shrink-0 text-foreground/50" />
+                  Save
+                </button>
+
+                {/* Export */}
+                <button
+                  id="graph-menu-export"
+                  onClick={handleExport}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <Download className="size-4 shrink-0 text-foreground/50" />
+                  Export as JSON
+                </button>
+
+                <div className="my-1 h-px bg-black/5 dark:bg-white/5" />
+
+                {/* New */}
+                <button
+                  id="graph-menu-new"
+                  onClick={() => { setNewGraphModalOpen(true); setMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <FilePlus className="size-4 shrink-0 text-foreground/50" />
+                  New graph
+                </button>
+
+                {/* Load */}
+                <button
+                  id="graph-menu-load"
+                  onClick={() => { setLoadGraphModalOpen(true); setMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <FolderOpen className="size-4 shrink-0 text-foreground/50" />
+                  Load graph
+                  <span className="ml-auto rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold text-foreground/50 dark:bg-white/10">{graphs.length}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
         {editorOpen && (
           <>
@@ -618,6 +854,135 @@ const Index = () => {
             
             <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
                <Button className="w-full rounded-xl py-6 font-semibold" onClick={() => setHelpOpen(false)}>Got it</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {newGraphModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-black/80">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => setNewGraphModalOpen(false)}
+            >
+              <X className="size-5" />
+            </Button>
+
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <FilePlus className="size-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Create New Graph</h2>
+                <p className="text-sm text-muted-foreground">Start fresh with a new diagram</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="modal-new-graph-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Graph Name</label>
+                <input
+                  autoFocus
+                  id="modal-new-graph-name"
+                  type="text"
+                  placeholder="Enter a descriptive name…"
+                  value={newGraphName}
+                  onChange={(e) => setNewGraphName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleNewGraph(); if (e.key === "Escape") setNewGraphModalOpen(false); }}
+                  className="w-full rounded-2xl border border-black/10 bg-white/50 px-4 py-3 text-sm outline-none placeholder:text-foreground/30 focus:ring-2 focus:ring-primary dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
+              
+              <div className="pt-2">
+                <Button className="w-full rounded-xl py-6 font-semibold" onClick={handleNewGraph}>Create Graph</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loadGraphModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-3xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-black/80">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => setLoadGraphModalOpen(false)}
+            >
+              <X className="size-5" />
+            </Button>
+
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <FolderOpen className="size-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Saved Graphs</h2>
+                <p className="text-sm text-muted-foreground">Continue working on your diagrams</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 overflow-y-auto max-h-[50vh] pr-2 custom-scrollbar">
+              {graphs.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground italic">No saved graphs yet</div>
+              ) : (
+                graphs.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => switchGraph(g.id)}
+                    className={`flex w-full items-center gap-4 rounded-2xl p-4 text-left transition-all border group ${
+                      g.id === activeId 
+                        ? "bg-primary/10 border-primary/20 ring-1 ring-primary/20" 
+                        : "bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                      g.id === activeId ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:text-foreground"
+                    }`}>
+                      <FileJson className="size-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {renamingId === g.id ? (
+                          <input
+                            autoFocus
+                            className="bg-transparent font-semibold truncate outline-none border-b border-primary w-full"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={() => handleRename(g.id, renameValue)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRename(g.id, renameValue);
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                          />
+                        ) : (
+                          <span 
+                            className={`font-semibold truncate cursor-text hover:text-primary transition-colors ${g.id === activeId ? "text-primary" : "text-foreground"}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRenaming(g.id, g.name);
+                            }}
+                          >
+                            {g.name}
+                          </span>
+                        )}
+                        {g.id === activeId && renamingId !== g.id && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">Active</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Updated {new Date(g.updatedAt).toLocaleDateString()}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
+               <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setLoadGraphModalOpen(false)}>Close</Button>
             </div>
           </div>
         </div>
