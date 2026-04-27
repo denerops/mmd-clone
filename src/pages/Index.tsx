@@ -671,6 +671,52 @@ const Index = () => {
     setColorPickerTarget(null);
   };
 
+  const handleShapeSelect = (shapeType: string) => {
+    if (!colorPickerTarget) return;
+    const { id } = colorPickerTarget;
+
+    const shapeBrackets: Record<string, [string, string]> = {
+      square: ['[', ']'],
+      rounded: ['(', ')'],
+      stadium: ['([', '])'],
+      diamond: ['{', '}'],
+      hexagon: ['{{', '}}'],
+      circle: ['((', '))'],
+      database: ['[(', ')]'],
+    };
+
+    const [newOpen, newClose] = shapeBrackets[shapeType] || ['[', ']'];
+
+    setCode((prevCode) => {
+      const lines = prevCode.split('\n');
+      let replaced = false;
+
+      const newLines = lines.map(line => {
+        if (replaced) return line;
+
+        // Pattern for various Mermaid brackets: [, (, ([ , ((, { , {{, [(
+        const bracketsPattern = '(\\[\\[|\\[\\(|\\(\\(|\\[\\/|\\[\\\\|\\{\\{|\\[|\\(|\\{)';
+        const closingPattern = '(\\]\\]|\\)\\]|\\)\\)|\\/\\]|\\\\\\]|\\}\\}|\\]|\\)|\\})';
+        
+        // Regex to find the node definition.
+        const regex = new RegExp(`(^|[\\s,;])(${id})(?:${bracketsPattern}(.*?)${closingPattern})?`, 'g');
+        
+        if (regex.test(line)) {
+          replaced = true;
+          return line.replace(regex, (match, prefix, nodeId, openBrack, content, closeBrack) => {
+            const text = content !== undefined ? content : nodeId;
+            return `${prefix}${nodeId}${newOpen}${text}${newClose}`;
+          });
+        }
+        return line;
+      });
+
+      return newLines.join('\n');
+    });
+
+    setColorPickerTarget(null);
+  };
+
   const customClasses = useMemo(() => {
     const classDefs: { name: string, fill: string | null }[] = [];
     const regex = /^\s*classDef\s+([\w-]+)\s+(.+)$/gm;
@@ -1015,7 +1061,7 @@ const Index = () => {
                   {customClasses.length > 0 && (
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
                       <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Diagram Classes</div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 px-1">
                         {customClasses.map(cls => (
                           <button
                             key={cls.name}
@@ -1031,6 +1077,30 @@ const Index = () => {
                       </div>
                     </div>
                   )}
+
+                  <div className="pt-2 border-t border-black/5 dark:border-white/5">
+                    <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { id: 'square', label: 'Square', class: 'rounded-none' },
+                        { id: 'rounded', label: 'Rounded', class: 'rounded-md' },
+                        { id: 'stadium', label: 'Stadium', class: 'rounded-full px-1.5 w-6 h-4' },
+                        { id: 'diamond', label: 'Diamond', class: 'rotate-45 scale-75' },
+                        { id: 'hexagon', label: 'Hexagon', class: 'w-5 h-4 border-l-0 border-r-0 relative before:absolute before:inset-0 before:border before:rotate-60 after:absolute after:inset-0 after:border after:-rotate-60' },
+                        { id: 'circle', label: 'Circle', class: 'rounded-full aspect-square' },
+                        { id: 'database', label: 'Database', class: 'rounded-sm border-t-2' },
+                      ].map(shape => (
+                        <button
+                          key={shape.id}
+                          className="group relative size-8 flex items-center justify-center rounded-lg border border-black/5 bg-white/60 dark:border-white/5 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                          onClick={() => handleShapeSelect(shape.id)}
+                          title={shape.label}
+                        >
+                          <div className={`size-4 border border-foreground/40 group-hover:border-primary transition-colors ${shape.class}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
               <div className="absolute inset-0 animate-fade-up">
