@@ -194,9 +194,9 @@ const shapeOptions = [
   { id: 'rounded', label: 'Rounded', open: '(', close: ')', class: 'rounded-md' },
   { id: 'stadium', label: 'Stadium', open: '([', close: '])', class: 'rounded-full px-1.5 w-6 h-4' },
   { id: 'diamond', label: 'Diamond', open: '{', close: '}', class: 'rotate-45 scale-75' },
-  { id: 'hexagon', label: 'Hexagon', open: '{{', close: '}}', class: 'w-5 h-4 border-l-0 border-r-0 relative before:absolute before:inset-0 before:border before:rotate-60 after:absolute after:inset-0 after:border after:-rotate-60' },
+  { id: 'hexagon', label: 'Hexagon', open: '{{', close: '}}', class: '' },
   { id: 'circle', label: 'Circle', open: '((', close: '))', class: 'rounded-full aspect-square' },
-  { id: 'database', label: 'Database', open: '[(', close: ')]', class: 'rounded-sm border-t-2' },
+  { id: 'database', label: 'Database', open: '[(', close: ')]', class: '' },
 ] as const;
 
 const bracketPairs = [
@@ -1315,7 +1315,7 @@ const Index = () => {
             >
               {colorPickerTarget && (
                 <div
-                  className="color-picker-menu absolute z-50 w-52"
+                  className="color-picker-menu absolute z-50 w-64"
                   style={{
                     left: colorPickerTarget.x,
                     top: colorPickerTarget.y,
@@ -1359,7 +1359,19 @@ const Index = () => {
 
                     <div>
                     <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Colors</div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid grid-cols-7 gap-1.5">
+                      <button
+                        className={`size-6 flex items-center justify-center rounded-full border bg-white/50 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm ${
+                          selectedNodeState && !selectedNodeState.color
+                            ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
+                            : "border-black/10 dark:border-white/10"
+                        }`}
+                        onClick={() => handleClassSelect('transparent')}
+                        aria-label="Remove style"
+                        title="Remove custom style"
+                      >
+                        <Minus className="size-3 text-foreground/70" />
+                      </button>
                       {nodeColors.map(color => (
                         <button
                           key={color}
@@ -1374,18 +1386,6 @@ const Index = () => {
                           title={selectedNodeState?.color?.toLowerCase() === color.toLowerCase() ? "Selected color" : `Select color ${color}`}
                         />
                       ))}
-                      <button
-                        className={`size-6 flex items-center justify-center rounded-full border bg-white/50 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm ${
-                          selectedNodeState && !selectedNodeState.color
-                            ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
-                            : "border-black/10 dark:border-white/10"
-                        }`}
-                        onClick={() => handleClassSelect('transparent')}
-                        aria-label="Remove style"
-                        title="Remove custom style"
-                      >
-                        <Minus className="size-3 text-foreground/70" />
-                      </button>
                     </div>
                     </div>
 
@@ -1416,19 +1416,31 @@ const Index = () => {
 
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
                     <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid grid-cols-7 gap-1.5">
                       {shapeOptions.map(shape => (
                         <button
                           key={shape.id}
                           className={`group relative size-8 flex items-center justify-center rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${
                             selectedNodeState?.shape.id === shape.id
-                              ? "border-primary ring-2 ring-primary/50"
+                              ? "border-primary text-primary"
                               : "border-black/5 dark:border-white/5"
                           }`}
                           onClick={() => handleShapeSelect(shape.id)}
                           title={selectedNodeState?.shape.id === shape.id ? `${shape.label} selected` : shape.label}
                         >
-                          <div className={`size-4 border transition-colors ${selectedNodeState?.shape.id === shape.id ? "border-primary" : "border-foreground/40 group-hover:border-primary"} ${shape.class}`} />
+                          {shape.id === "hexagon" ? (
+                            <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 20" fill="none" aria-hidden="true">
+                              <path d="M6.5 1.5H17.5L22.5 10L17.5 18.5H6.5L1.5 10L6.5 1.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                            </svg>
+                          ) : shape.id === "database" ? (
+                            <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <ellipse cx="12" cy="5.5" rx="7" ry="3.5" stroke="currentColor" strokeWidth="1.8" />
+                              <path d="M5 5.5V18.5C5 20.43 8.13 22 12 22C15.87 22 19 20.43 19 18.5V5.5" stroke="currentColor" strokeWidth="1.8" />
+                              <path d="M5 12C5 13.93 8.13 15.5 12 15.5C15.87 15.5 19 13.93 19 12" stroke="currentColor" strokeWidth="1.8" />
+                            </svg>
+                          ) : (
+                            <div className={`size-4 border transition-colors ${selectedNodeState?.shape.id === shape.id ? "border-primary" : "border-foreground/40 group-hover:border-primary"} ${shape.class}`} />
+                          )}
                         </button>
                       ))}
                     </div>
