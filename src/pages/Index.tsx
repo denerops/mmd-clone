@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight } from "lucide-react";
+import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -106,12 +106,33 @@ const templates = [
 // ─── Multi-graph persistence helpers ────────────────────────────────────────
 const GRAPHS_KEY = "mmd-graphs";
 const ACTIVE_KEY = "mmd-active-graph";
+const MAX_SNAPSHOTS = 20;
 
-type GraphRecord = { id: string; name: string; code: string; updatedAt: number };
+type GraphSnapshot = { id: string; code: string; createdAt: number };
+type GraphRecord = { id: string; name: string; code: string; updatedAt: number; snapshots?: GraphSnapshot[] };
+
+const createSnapshot = (code: string, createdAt = Date.now()): GraphSnapshot => ({
+  id: crypto.randomUUID(),
+  code,
+  createdAt,
+});
+
+const trimSnapshots = (snapshots: GraphSnapshot[]) => snapshots.slice(0, MAX_SNAPSHOTS);
+
+const addSnapshot = (snapshots: GraphSnapshot[] | undefined, code: string, createdAt = Date.now()) =>
+  trimSnapshots([createSnapshot(code, createdAt), ...(snapshots ?? [])]);
+
+const ensureSnapshots = (graph: GraphRecord): GraphRecord => {
+  if (graph.snapshots?.length) {
+    return { ...graph, snapshots: trimSnapshots(graph.snapshots) };
+  }
+  return { ...graph, snapshots: [createSnapshot(graph.code, graph.updatedAt)] };
+};
 
 const loadGraphs = (): GraphRecord[] => {
   try {
-    return JSON.parse(localStorage.getItem(GRAPHS_KEY) || "[]");
+    const parsed = JSON.parse(localStorage.getItem(GRAPHS_KEY) || "[]") as GraphRecord[];
+    return parsed.map(ensureSnapshots);
   } catch {
     return [];
   }
@@ -132,24 +153,41 @@ const migrateLegacy = (): { graphs: GraphRecord[]; activeId: string } => {
 
   if (legacy && graphs.length === 0) {
     const id = crypto.randomUUID();
-    graphs = [{ id, name: "My Graph", code: legacy, updatedAt: Date.now() }];
+    const now = Date.now();
+    graphs = [{ id, name: "My Graph", code: legacy, updatedAt: now, snapshots: [createSnapshot(legacy, now)] }];
     saveGraphs(graphs);
     setActiveId(id);
     activeId = id;
     localStorage.removeItem("mermaidCode");
   } else if (graphs.length === 0) {
     const id = crypto.randomUUID();
-    graphs = [{ id, name: "My Graph", code: initialDiagram, updatedAt: Date.now() }];
+    const now = Date.now();
+    graphs = [{ id, name: "My Graph", code: initialDiagram, updatedAt: now, snapshots: [createSnapshot(initialDiagram, now)] }];
     saveGraphs(graphs);
     setActiveId(id);
     activeId = id;
-  } else if (!activeId || !graphs.find((g) => g.id === activeId)) {
+  } else {
+    graphs = graphs.map(ensureSnapshots);
+    saveGraphs(graphs);
+  }
+
+  if (!activeId || !graphs.find((g) => g.id === activeId)) {
     activeId = graphs[0].id;
     setActiveId(activeId);
   }
 
   return { graphs, activeId };
 };
+
+const formatSnapshotTime = (timestamp: number) =>
+  new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 type LayoutRenderer = "dagre-wrapper" | "elk";
 type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
@@ -249,6 +287,7 @@ const Index = () => {
   const [loadGraphModalOpen, setLoadGraphModalOpen] = useState(false);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -276,6 +315,8 @@ const Index = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
+  const activeSnapshots = activeGraph?.snapshots ?? [];
+  const canRollback = activeSnapshots.some((snapshot) => snapshot.code !== savedCode);
 
   // ── Multi-graph helpers ──────────────────────────────────────────────────
   const persistGraphs = (updated: GraphRecord[]) => {
@@ -301,13 +342,14 @@ const Index = () => {
 
   const handleLoadTemplate = (templateCode: string, templateName: string) => {
     const id = crypto.randomUUID();
-    const newGraph: GraphRecord = { id, name: `New ${templateName}`, code: templateCode, updatedAt: Date.now() };
-    
+    const now = Date.now();
+    const newGraph: GraphRecord = { id, name: `New ${templateName}`, code: templateCode, updatedAt: now, snapshots: [createSnapshot(templateCode, now)] };
+
     // Save current first
     const updated = graphs.map((g) =>
       g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
     );
-    
+
     const next = [...updated, newGraph];
     persistGraphs(next);
     setActiveIdState(id);
@@ -331,7 +373,8 @@ const Index = () => {
       } else {
         // Create a default one if all are gone
         const newId = crypto.randomUUID();
-        const defaultGraph = { id: newId, name: "My Graph", code: initialDiagram, updatedAt: Date.now() };
+        const now = Date.now();
+        const defaultGraph = { id: newId, name: "My Graph", code: initialDiagram, updatedAt: now, snapshots: [createSnapshot(initialDiagram, now)] };
         persistGraphs([defaultGraph]);
         setActiveIdState(newId);
         setActiveId(newId);
@@ -342,11 +385,32 @@ const Index = () => {
   };
 
   const handleSave = () => {
+    const now = Date.now();
     const updated = graphs.map((g) =>
-      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+      g.id === activeId ? { ...g, code, updatedAt: now, snapshots: addSnapshot(g.snapshots, code, now) } : g
     );
     persistGraphs(updated);
     setSavedCode(code);
+    toast.success("Version saved");
+  };
+
+  const rollbackToSnapshot = (snapshot: GraphSnapshot) => {
+    const now = Date.now();
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code: snapshot.code, updatedAt: now } : g
+    );
+    persistGraphs(updated);
+    setCode(snapshot.code);
+    setSavedCode(snapshot.code);
+    setHistoryMenuOpen(false);
+    setMenuOpen(false);
+    toast.success("Rolled back to snapshot");
+  };
+
+  const rollbackToPreviousSnapshot = () => {
+    const previousSnapshot = activeSnapshots.find((snapshot) => snapshot.code !== savedCode);
+    if (!previousSnapshot) return;
+    rollbackToSnapshot(previousSnapshot);
   };
 
   const handleNewGraph = () => {
@@ -356,7 +420,8 @@ const Index = () => {
     const updated = graphs.map((g) =>
       g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
     );
-    const newGraph: GraphRecord = { id, name, code: initialDiagram, updatedAt: Date.now() };
+    const now = Date.now();
+    const newGraph: GraphRecord = { id, name, code: initialDiagram, updatedAt: now, snapshots: [createSnapshot(initialDiagram, now)] };
     const next = [...updated, newGraph];
     persistGraphs(next);
     setActiveIdState(id);
@@ -432,7 +497,8 @@ const Index = () => {
         const decompressed = LZString.decompressFromEncodedURIComponent(sharedCode);
         if (decompressed) {
           const id = crypto.randomUUID();
-          const sharedGraph = { id, name: "Shared Graph", code: decompressed, updatedAt: Date.now() };
+          const now = Date.now();
+          const sharedGraph = { id, name: "Shared Graph", code: decompressed, updatedAt: now, snapshots: [createSnapshot(decompressed, now)] };
           const updated = [sharedGraph, ...graphs];
           persistGraphs(updated);
           setActiveIdState(id);
@@ -592,12 +658,12 @@ const Index = () => {
 
         // ── Smart Navigation (Click-to-Sync) ─────────────────────────────────
         if (!editorOpen) setEditorOpen(true);
-        
+
         const lines = code.split('\n');
         // Look for the node ID as a word, often followed by bracket/paren/arrow
         const nodeRegex = new RegExp(`(?:^|[\\s,;])${nodeId}(?:\\[|\\(|\\{|\\>|\\s|$)`, 'm');
         let lineIndex = -1;
-        
+
         for (let i = 0; i < lines.length; i++) {
           if (nodeRegex.test(lines[i])) {
             lineIndex = i;
@@ -608,20 +674,20 @@ const Index = () => {
         if (lineIndex !== -1 && textareaRef.current) {
           const textarea = textareaRef.current;
           const lineHeight = 24; // leading-6 is 24px
-          
+
           // Calculate character range for highlighting
           const start = lines.slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? 1 : 0);
           const end = start + lines[lineIndex].length;
-          
+
           // Scroll and highlight
           setTimeout(() => {
             textarea.focus();
             textarea.setSelectionRange(start, end);
-            
+
             // center the line in the textarea
             const visibleLines = Math.floor(textarea.clientHeight / lineHeight);
             const scrollOffset = Math.max(0, (lineIndex - Math.floor(visibleLines / 2)) * lineHeight);
-            
+
             textarea.scrollTo({
               top: scrollOffset,
               behavior: 'smooth'
@@ -690,25 +756,51 @@ const Index = () => {
     setCode((prevCode) => {
       const lines = prevCode.split('\n');
       let replaced = false;
+      const bracketPairs = [
+        ['[[', ']]'],
+        ['[(', ')]'],
+        ['([', '])'],
+        ['((', '))'],
+        ['[/', '/]'],
+        ['[\\', '\\]'],
+        ['{{', '}}'],
+        ['[', ']'],
+        ['(', ')'],
+        ['{', '}'],
+      ] as const;
+      const nodeRegex = new RegExp(`(^|[\\s,;])(${escapeRegExp(id)})(?=$|[\\s\\[\\(\\{>])`);
 
       const newLines = lines.map(line => {
         if (replaced) return line;
 
-        // Pattern for various Mermaid brackets: [, (, ([ , ((, { , {{, [(
-        const bracketsPattern = '(\\[\\[|\\[\\(|\\(\\(|\\[\\/|\\[\\\\|\\{\\{|\\[|\\(|\\{)';
-        const closingPattern = '(\\]\\]|\\)\\]|\\)\\)|\\/\\]|\\\\\\]|\\}\\}|\\]|\\)|\\})';
-        
-        // Regex to find the node definition.
-        const regex = new RegExp(`(^|[\\s,;])(${id})(?:${bracketsPattern}(.*?)${closingPattern})?`, 'g');
-        
-        if (regex.test(line)) {
-          replaced = true;
-          return line.replace(regex, (match, prefix, nodeId, openBrack, content, closeBrack) => {
-            const text = content !== undefined ? content : nodeId;
-            return `${prefix}${nodeId}${newOpen}${text}${newClose}`;
-          });
+        const match = nodeRegex.exec(line);
+        if (!match) return line;
+
+        const prefix = match[1];
+        const nodeId = match[2];
+        const nodeStart = match.index + prefix.length;
+        const labelStart = nodeStart + nodeId.length;
+        const rest = line.slice(labelStart);
+        const pair = bracketPairs.find(([open]) => rest.startsWith(open));
+
+        replaced = true;
+
+        if (!pair) {
+          return `${line.slice(0, labelStart)}${newOpen}${nodeId}${newClose}${rest}`;
         }
-        return line;
+
+        const [oldOpen, oldClose] = pair;
+        const contentStart = labelStart + oldOpen.length;
+        const contentEnd = line.indexOf(oldClose, contentStart);
+
+        if (contentEnd === -1) {
+          return line;
+        }
+
+        const text = line.slice(contentStart, contentEnd);
+        const before = line.slice(0, labelStart);
+        const after = line.slice(contentEnd + oldClose.length);
+        return `${before}${newOpen}${text}${newClose}${after}`;
       });
 
       return newLines.join('\n');
@@ -777,7 +869,7 @@ const Index = () => {
                     }}
                   />
                 ) : (
-                  <p 
+                  <p
                     className="mt-0.5 truncate text-sm font-semibold text-foreground cursor-text hover:text-primary transition-colors"
                     onClick={() => startRenaming(activeId, activeGraph?.name ?? "")}
                     title="Click to rename"
@@ -797,6 +889,46 @@ const Index = () => {
                   <Save className="size-4 shrink-0 text-foreground/50" />
                   Save
                 </button>
+
+                {/* History */}
+                <div className="relative">
+                  <button
+                    id="graph-menu-history"
+                    onClick={() => setHistoryMenuOpen(!historyMenuOpen)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <History className="size-4 shrink-0 text-foreground/50" />
+                      <span>History</span>
+                    </div>
+                    <span className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold text-foreground/50 dark:bg-white/10">{activeSnapshots.length}</span>
+                      <ChevronRight className={`size-3.5 transition-transform duration-200 ${historyMenuOpen ? "rotate-90" : ""}`} />
+                    </span>
+                  </button>
+
+                  {historyMenuOpen && (
+                    <div className="mt-1 ml-4 max-h-56 space-y-0.5 overflow-y-auto border-l border-black/5 pl-2 pr-1 animate-in slide-in-from-top-1 dark:border-white/5">
+                      {activeSnapshots.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-foreground/45">No snapshots yet</div>
+                      ) : (
+                        activeSnapshots.map((snapshot) => (
+                          <button
+                            key={snapshot.id}
+                            onClick={() => rollbackToSnapshot(snapshot)}
+                            disabled={snapshot.code === savedCode}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 disabled:cursor-default disabled:opacity-50 dark:hover:bg-white/10"
+                            title={snapshot.code === savedCode ? "Current saved version" : "Rollback to this snapshot"}
+                          >
+                            <RotateCcw className="size-3.5 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">{formatSnapshotTime(snapshot.createdAt)}</span>
+                            {snapshot.code === savedCode && <span className="text-[9px] uppercase tracking-wider">Current</span>}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Export Options */}
                 <div className="relative">
@@ -954,11 +1086,18 @@ const Index = () => {
 
         <ResizablePanel defaultSize={editorOpen ? 64 : 100} minSize={30}>
           <section className="relative h-full min-h-0 overflow-hidden bg-board text-board-foreground">
-            {code !== savedCode && (
+            {(code !== savedCode || canRollback) && (
               <div className="absolute bottom-8 right-8 z-50 flex items-center rounded-2xl border border-white/30 bg-white/20 p-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95">
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
-                  <Save className="size-5" />
-                </Button>
+                {canRollback && (
+                  <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={rollbackToPreviousSnapshot} aria-label="Rollback to previous version" title="Rollback to previous version">
+                    <RotateCcw className="size-5" />
+                  </Button>
+                )}
+                {code !== savedCode && (
+                  <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
+                    <Save className="size-5" />
+                  </Button>
+                )}
               </div>
             )}
 
@@ -972,53 +1111,53 @@ const Index = () => {
 
             {!editorFullScreen && (
               <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
-              <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
-                {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-              </Button>
-              <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-              <Workflow className="size-4 text-foreground/80" />
-              <select
-                value={layout}
-                onChange={(event) => setLayout(event.target.value as LayoutRenderer)}
-                aria-label="Change layout"
-                className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
-              >
-                <option value="elk" className="bg-background">ELK</option>
-                <option value="dagre-wrapper" className="bg-background">Dagre</option>
-              </select>
-              <Palette className="size-4 text-foreground/80" />
-              <select
-                value={diagramTheme}
-                onChange={(event) => setDiagramTheme(event.target.value as DiagramTheme)}
-                aria-label="Change theme"
-                className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
-              >
-                <option value="base" className="bg-background">Base</option>
-                <option value="apple-glass" className="bg-background">Apple Glass</option>
-                <option value="default" className="bg-background">Default</option>
-                <option value="dark" className="bg-background">Dark</option>
-                <option value="forest" className="bg-background">Forest</option>
-                <option value="neutral" className="bg-background">Neutral</option>
-              </select>
-              <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-              <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
-                <Hand />
-              </Button>
-              <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
-                <Minus />
-              </Button>
-              <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(10)} aria-label="Zoom in">
-                <Plus />
-              </Button>
-              <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
-                <Focus />
-              </Button>
-              <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-              <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </Button>
-              <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
-            </div>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
+                  {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+                </Button>
+                <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+                <Workflow className="size-4 text-foreground/80" />
+                <select
+                  value={layout}
+                  onChange={(event) => setLayout(event.target.value as LayoutRenderer)}
+                  aria-label="Change layout"
+                  className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+                >
+                  <option value="elk" className="bg-background">ELK</option>
+                  <option value="dagre-wrapper" className="bg-background">Dagre</option>
+                </select>
+                <Palette className="size-4 text-foreground/80" />
+                <select
+                  value={diagramTheme}
+                  onChange={(event) => setDiagramTheme(event.target.value as DiagramTheme)}
+                  aria-label="Change theme"
+                  className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+                >
+                  <option value="base" className="bg-background">Base</option>
+                  <option value="apple-glass" className="bg-background">Apple Glass</option>
+                  <option value="default" className="bg-background">Default</option>
+                  <option value="dark" className="bg-background">Dark</option>
+                  <option value="forest" className="bg-background">Forest</option>
+                  <option value="neutral" className="bg-background">Neutral</option>
+                </select>
+                <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+                <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
+                  <Hand />
+                </Button>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
+                  <Minus />
+                </Button>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(10)} aria-label="Zoom in">
+                  <Plus />
+                </Button>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
+                  <Focus />
+                </Button>
+                <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
+                  {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                </Button>
+                <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
+              </div>
             )}
 
             <div
@@ -1192,9 +1331,9 @@ const Index = () => {
                 </div>
               </section>
             </div>
-            
+
             <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
-               <Button className="w-full rounded-xl py-6 font-semibold" onClick={() => setHelpOpen(false)}>Got it</Button>
+              <Button className="w-full rounded-xl py-6 font-semibold" onClick={() => setHelpOpen(false)}>Got it</Button>
             </div>
           </div>
         </div>
@@ -1235,7 +1374,7 @@ const Index = () => {
                   className="w-full rounded-2xl border border-black/10 bg-white/50 px-4 py-3 text-sm outline-none placeholder:text-foreground/30 focus:ring-2 focus:ring-primary dark:border-white/10 dark:bg-white/5"
                 />
               </div>
-              
+
               <div className="pt-2">
                 <Button className="w-full rounded-xl py-6 font-semibold" onClick={handleNewGraph}>Create Graph</Button>
               </div>
@@ -1274,15 +1413,13 @@ const Index = () => {
                   <button
                     key={g.id}
                     onClick={() => switchGraph(g.id)}
-                    className={`flex w-full items-center gap-4 rounded-2xl p-4 text-left transition-all border group ${
-                      g.id === activeId 
-                        ? "bg-primary/10 border-primary/20 ring-1 ring-primary/20" 
+                    className={`flex w-full items-center gap-4 rounded-2xl p-4 text-left transition-all border group ${g.id === activeId
+                        ? "bg-primary/10 border-primary/20 ring-1 ring-primary/20"
                         : "bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
-                    }`}
+                      }`}
                   >
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                      g.id === activeId ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:text-foreground"
-                    }`}>
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${g.id === activeId ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:text-foreground"
+                      }`}>
                       <FileJson className="size-5" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1301,7 +1438,7 @@ const Index = () => {
                             }}
                           />
                         ) : (
-                          <span 
+                          <span
                             className={`font-semibold truncate cursor-text hover:text-primary transition-colors ${g.id === activeId ? "text-primary" : "text-foreground"}`}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1348,9 +1485,9 @@ const Index = () => {
                 ))
               )}
             </div>
-            
+
             <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
-               <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setLoadGraphModalOpen(false)}>Close</Button>
+              <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setLoadGraphModalOpen(false)}>Close</Button>
             </div>
           </div>
         </div>
@@ -1393,9 +1530,9 @@ const Index = () => {
                 </button>
               ))}
             </div>
-            
+
             <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
-               <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setTemplatesModalOpen(false)}>Close</Button>
+              <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setTemplatesModalOpen(false)}>Close</Button>
             </div>
           </div>
         </div>
