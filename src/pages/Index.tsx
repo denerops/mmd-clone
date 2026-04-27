@@ -1,4 +1,4 @@
-import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
 import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw } from "lucide-react";
@@ -7,6 +7,7 @@ import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
 
 const initialDiagram = `flowchart LR
   A[Idea] --> B{Shape it}
@@ -212,6 +213,69 @@ const bracketPairs = [
   ['{', '}'],
 ] as const;
 
+const mermaidKeywords = new Set([
+  "flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "gantt",
+  "mindmap", "gitGraph", "journey", "timeline", "pie", "quadrantChart", "kanban", "architecture",
+  "subgraph", "end", "classDef", "class", "style", "linkStyle", "click", "direction", "participant",
+  "actor", "section", "title", "commit", "branch", "checkout", "merge",
+]);
+
+const renderHighlightedLine = (line: string, lineIndex: number) => {
+  if (!line) return <span key={lineIndex}>{"\u00a0"}</span>;
+
+  const commentIndex = line.indexOf("%%");
+  const source = commentIndex === -1 ? line : line.slice(0, commentIndex);
+  const comment = commentIndex === -1 ? "" : line.slice(commentIndex);
+  const labelRanges: Array<{ start: number; end: number }> = [];
+  bracketPairs.forEach(([open, close]) => {
+    let searchFrom = 0;
+    while (searchFrom < source.length) {
+      const openIndex = source.indexOf(open, searchFrom);
+      if (openIndex === -1) break;
+      const contentStart = openIndex + open.length;
+      const closeIndex = source.indexOf(close, contentStart);
+      if (closeIndex === -1) break;
+      labelRanges.push({ start: contentStart, end: closeIndex });
+      searchFrom = closeIndex + close.length;
+    }
+  });
+  const isLabelToken = (index: number) => labelRanges.some((range) => index >= range.start && index < range.end);
+  const tokenRegex = /(-->|---|==>|-.->|--x|--o|<-->|<--|--|:::[\w-]+|\|\s*[^|]*\s*\||\b[\w-]+\b|[{}()[\]])/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenRegex.exec(source)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(source.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    const className = cn(
+      /^-/.test(token) || /^<--/.test(token) ? "text-[#74c7ec]" : "",
+      /^:::[\w-]+$/.test(token) ? "font-medium text-[#cba6f7]" : "",
+      /^\|.*\|$/.test(token) ? "text-[#94e2d5]" : "",
+      isLabelToken(match.index) && /^[A-Za-z_][\w-]*$/.test(token) ? "text-[#a6e3a1]" : "",
+      mermaidKeywords.has(token) && !isLabelToken(match.index) ? "font-semibold text-[#b4befe]" : "",
+      /^[{}()[\]]$/.test(token) ? "text-[#6c7086]" : "",
+      /^[A-Za-z_][\w-]*$/.test(token) && !mermaidKeywords.has(token) && !isLabelToken(match.index) ? "text-[#fab387]" : ""
+    );
+
+    parts.push(className ? <span key={`${lineIndex}-${match.index}`} className={className}>{token}</span> : token);
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < source.length) {
+    parts.push(source.slice(lastIndex));
+  }
+
+  if (comment) {
+    parts.push(<span key={`${lineIndex}-comment`} className="italic text-[#6c7086]">{comment}</span>);
+  }
+
+  return <span key={lineIndex}>{parts}</span>;
+};
+
 type LayoutRenderer = "dagre-wrapper" | "elk";
 type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
 
@@ -329,10 +393,11 @@ const Index = () => {
   const [editorOpen, setEditorOpen] = useState(true);
   const [editorFullScreen, setEditorFullScreen] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const [updateTimeout, setUpdateTimeout] = useState<1 | 2 | 3>(1);
+  const [updateTimeout, setUpdateTimeout] = useState<0.5 | 1 | 2 | 3>(0.5);
   const [colorPickerTarget, setColorPickerTarget] = useState<{ id: string; x: number; y: number } | null>(null);
   const [nodeDraft, setNodeDraft] = useState({ id: "", label: "" });
   const [helpOpen, setHelpOpen] = useState(false);
+  const [editorScroll, setEditorScroll] = useState({ top: 0, left: 0 });
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
   const renderSequenceRef = useRef(0);
@@ -1180,9 +1245,10 @@ const Index = () => {
                       {autoUpdate && (
                         <select
                           value={updateTimeout}
-                          onChange={(e) => setUpdateTimeout(Number(e.target.value) as 1 | 2 | 3)}
+                          onChange={(e) => setUpdateTimeout(Number(e.target.value) as 0.5 | 1 | 2 | 3)}
                           className="h-8 bg-transparent text-xs text-editor-foreground outline-none cursor-pointer"
                         >
+                          <option value={0.5} className="bg-editor">0.5s</option>
                           <option value={1} className="bg-editor">1s</option>
                           <option value={2} className="bg-editor">2s</option>
                           <option value={3} className="bg-editor">3s</option>
@@ -1205,15 +1271,34 @@ const Index = () => {
                       <div key={index}>{index + 1}</div>
                     ))}
                   </div>
-                  <textarea
-                    ref={textareaRef}
-                    value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                    spellCheck={false}
-                    aria-label="Mermaid code editor"
-                    className="min-h-0 flex-1 resize-none bg-editor px-4 py-4 text-sm leading-6 text-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35"
-                    style={{ tabSize: 2 }}
-                  />
+                  <div className="relative min-h-0 flex-1 bg-editor">
+                    <pre
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 overflow-hidden px-4 py-4 text-sm leading-6 text-editor-foreground"
+                      style={{ tabSize: 2 }}
+                    >
+                      <code
+                        className="block min-h-full whitespace-pre"
+                        style={{ transform: `translate(${-editorScroll.left}px, ${-editorScroll.top}px)` }}
+                      >
+                        {code.split("\n").map((line, index) => (
+                          <span key={index} className="block h-6">
+                            {renderHighlightedLine(line, index)}
+                          </span>
+                        ))}
+                      </code>
+                    </pre>
+                    <textarea
+                      ref={textareaRef}
+                      value={code}
+                      onChange={(event) => setCode(event.target.value)}
+                      onScroll={(event) => setEditorScroll({ top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft })}
+                      spellCheck={false}
+                      aria-label="Mermaid code editor"
+                      className="absolute inset-0 min-h-0 w-full resize-none bg-transparent px-4 py-4 text-sm leading-6 text-transparent caret-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35"
+                      style={{ tabSize: 2 }}
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-editor-line bg-editor/95 px-4 py-3 text-xs text-editor-foreground/65">
                   {error ? <span className="font-medium text-destructive-foreground">Syntax needs attention</span> : <span>Ready</span>}
