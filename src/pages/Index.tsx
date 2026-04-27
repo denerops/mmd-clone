@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, Image as ImageIcon, FileCode, ChevronRight } from "lucide-react";
+import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -380,35 +380,6 @@ const Index = () => {
     setMenuOpen(false);
   };
 
-  const handleExportPNG = (scale: number = 2) => {
-    const canvas = document.createElement('canvas');
-    const img = new Image();
-    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    img.onload = () => {
-      const width = svgSize.width * scale;
-      const height = svgSize.height * scale;
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = diagramTheme === 'dark' ? '#1a1a1a' : '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        const pngUrl = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = pngUrl;
-        a.download = `${activeGraph?.name || 'diagram'}-${scale}x.png`;
-        a.click();
-        toast.success(`PNG (${scale}x) exported!`);
-      }
-      URL.revokeObjectURL(url);
-      setMenuOpen(false);
-    };
-
-    img.src = url;
-  };
 
   const handleShare = () => {
     try {
@@ -809,28 +780,6 @@ const Index = () => {
                       >
                         <FileCode className="size-3.5" />
                         SVG (Vector)
-                      </button>
-                      <div className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-foreground/30">PNG Raster</div>
-                      <button
-                        onClick={() => handleExportPNG(1)}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                      >
-                        <ImageIcon className="size-3.5" />
-                        PNG (1x)
-                      </button>
-                      <button
-                        onClick={() => handleExportPNG(2)}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                      >
-                        <ImageIcon className="size-3.5" />
-                        PNG (2x - HD)
-                      </button>
-                      <button
-                        onClick={() => handleExportPNG(4)}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                      >
-                        <ImageIcon className="size-3.5" />
-                        PNG (4x - Ultra)
                       </button>
                     </div>
                   )}
