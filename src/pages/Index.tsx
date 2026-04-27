@@ -1,7 +1,7 @@
 import { type MouseEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2 } from "lucide-react";
+import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, Image as ImageIcon, FileCode, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,92 @@ const initialDiagram = `flowchart LR
   D --> E
   E --> F[Share a crisp diagram]
 
-  classDef focus fill:#14b8a6,stroke:#0f766e,color:#ffffff
-  classDef calm fill:#eef2ff,stroke:#6366f1,color:#111827
-  class A,E focus
   class B,C,D,F calm`;
+
+const templates = [
+  {
+    id: "flowchart",
+    name: "Flowchart",
+    code: `flowchart TD
+  A[Start] --> B{Is it?}
+  B -- Yes --> C[OK]
+  B -- No --> D[Not OK]
+  C --> E[End]
+  D --> E`,
+    description: "Standard flowchart for processes and logic."
+  },
+  {
+    id: "sequence",
+    name: "Sequence Diagram",
+    code: `sequenceDiagram
+  Alice->>John: Hello John, how are you?
+  John-->>Alice: Great!
+  Alice-)John: See you later!`,
+    description: "Visualize interactions between objects in time order."
+  },
+  {
+    id: "gantt",
+    name: "Gantt Chart",
+    code: `gantt
+  title A Gantt Diagram
+  dateFormat  YYYY-MM-DD
+  section Section
+  A task           :a1, 2023-01-01, 30d
+  Another task     :after a1  , 20d`,
+    description: "Project management and schedule visualization."
+  },
+  {
+    id: "class",
+    name: "Class Diagram",
+    code: `classDiagram
+  Animal <|-- Duck
+  Animal <|-- Fish
+  Animal <|-- Zebra
+  Animal : +int age
+  Animal : +String gender
+  Animal: +isMammal()
+  Animal: +mate()`,
+    description: "Structure and relationships of object-oriented systems."
+  },
+  {
+    id: "er",
+    name: "ER Diagram",
+    code: `erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE-ITEM : contains
+  CUSTOMER }|..|{ DELIVERY-ADDRESS : uses`,
+    description: "Data modeling for database design."
+  },
+  {
+    id: "mindmap",
+    name: "Mindmap",
+    code: `mindmap
+  root((mindmap))
+    Origins
+      Long history
+      ::icon(fa fa-book)
+    Research
+      Personal
+      Professional`,
+    description: "Hierarchical brainstorming and ideation."
+  },
+  {
+    id: "git",
+    name: "Git Graph",
+    code: `gitGraph
+  commit
+  commit
+  branch develop
+  checkout develop
+  commit
+  commit
+  checkout main
+  merge develop
+  commit
+  commit`,
+    description: "Visualize git workflows and branching."
+  }
+];
 
 // ─── Multi-graph persistence helpers ────────────────────────────────────────
 const GRAPHS_KEY = "mmd-graphs";
@@ -165,7 +247,10 @@ const Index = () => {
   const [newGraphName, setNewGraphName] = useState("");
   const [newGraphModalOpen, setNewGraphModalOpen] = useState(false);
   const [loadGraphModalOpen, setLoadGraphModalOpen] = useState(false);
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +273,7 @@ const Index = () => {
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
   const renderSequenceRef = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
 
@@ -211,6 +297,48 @@ const Index = () => {
     setSavedCode(target.code);
     setMenuOpen(false);
     setLoadGraphModalOpen(false);
+  };
+
+  const handleLoadTemplate = (templateCode: string, templateName: string) => {
+    const id = crypto.randomUUID();
+    const newGraph: GraphRecord = { id, name: `New ${templateName}`, code: templateCode, updatedAt: Date.now() };
+    
+    // Save current first
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+    );
+    
+    const next = [...updated, newGraph];
+    persistGraphs(next);
+    setActiveIdState(id);
+    setActiveId(id);
+    setCode(templateCode);
+    setSavedCode(templateCode);
+    setTemplatesModalOpen(false);
+    setMenuOpen(false);
+    toast.success(`Loaded ${templateName} template!`);
+  };
+
+  const handleDeleteGraph = (id: string) => {
+    const nextGraphs = graphs.filter((g) => g.id !== id);
+    persistGraphs(nextGraphs);
+    setDeletingId(null);
+    toast.success("Graph deleted");
+
+    if (id === activeId) {
+      if (nextGraphs.length > 0) {
+        switchGraph(nextGraphs[0].id);
+      } else {
+        // Create a default one if all are gone
+        const newId = crypto.randomUUID();
+        const defaultGraph = { id: newId, name: "My Graph", code: initialDiagram, updatedAt: Date.now() };
+        persistGraphs([defaultGraph]);
+        setActiveIdState(newId);
+        setActiveId(newId);
+        setCode(initialDiagram);
+        setSavedCode(initialDiagram);
+      }
+    }
   };
 
   const handleSave = () => {
@@ -240,11 +368,53 @@ const Index = () => {
     setMenuOpen(false);
   };
 
+  const handleExportSVG = () => {
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeGraph?.name || 'diagram'}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("SVG exported!");
+    setMenuOpen(false);
+  };
+
+  const handleExportPNG = (scale: number = 2) => {
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
+      const width = svgSize.width * scale;
+      const height = svgSize.height * scale;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = diagramTheme === 'dark' ? '#1a1a1a' : '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `${activeGraph?.name || 'diagram'}-${scale}x.png`;
+        a.click();
+        toast.success(`PNG (${scale}x) exported!`);
+      }
+      URL.revokeObjectURL(url);
+      setMenuOpen(false);
+    };
+
+    img.src = url;
+  };
+
   const handleShare = () => {
     try {
       const compressed = LZString.compressToEncodedURIComponent(code);
       const url = new URL(window.location.href);
-      url.searchParams.set("s", compressed); // Using 's' for short/shared
+      url.searchParams.set("s", compressed);
       navigator.clipboard.writeText(url.toString());
       toast.success("Share link copied to clipboard (compressed)!");
       setMenuOpen(false);
@@ -253,7 +423,7 @@ const Index = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExportJSON = () => {
     const graph = graphs.find((g) => g.id === activeId);
     const data = { name: graph?.name ?? "graph", code, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -448,6 +618,45 @@ const Index = () => {
             y: event.clientY - boardRect.top,
           });
         }
+
+        // ── Smart Navigation (Click-to-Sync) ─────────────────────────────────
+        if (!editorOpen) setEditorOpen(true);
+        
+        const lines = code.split('\n');
+        // Look for the node ID as a word, often followed by bracket/paren/arrow
+        const nodeRegex = new RegExp(`(?:^|[\\s,;])${nodeId}(?:\\[|\\(|\\{|\\>|\\s|$)`, 'm');
+        let lineIndex = -1;
+        
+        for (let i = 0; i < lines.length; i++) {
+          if (nodeRegex.test(lines[i])) {
+            lineIndex = i;
+            break;
+          }
+        }
+
+        if (lineIndex !== -1 && textareaRef.current) {
+          const textarea = textareaRef.current;
+          const lineHeight = 24; // leading-6 is 24px
+          
+          // Calculate character range for highlighting
+          const start = lines.slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? 1 : 0);
+          const end = start + lines[lineIndex].length;
+          
+          // Scroll and highlight
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start, end);
+            
+            // center the line in the textarea
+            const visibleLines = Math.floor(textarea.clientHeight / lineHeight);
+            const scrollOffset = Math.max(0, (lineIndex - Math.floor(visibleLines / 2)) * lineHeight);
+            
+            textarea.scrollTo({
+              top: scrollOffset,
+              behavior: 'smooth'
+            });
+          }, 10);
+        }
         return;
       }
     }
@@ -572,14 +781,69 @@ const Index = () => {
                   Save
                 </button>
 
-                {/* Export */}
+                {/* Export Options */}
+                <div className="relative">
+                  <button
+                    onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Download className="size-4 shrink-0 text-foreground/50" />
+                      <span>Export As...</span>
+                    </div>
+                    <ChevronRight className={`size-3.5 transition-transform duration-200 ${exportMenuOpen ? "rotate-90" : ""}`} />
+                  </button>
+
+                  {exportMenuOpen && (
+                    <div className="mt-1 ml-4 space-y-0.5 border-l border-black/5 pl-2 animate-in slide-in-from-top-1 dark:border-white/5">
+                      <button
+                        onClick={handleExportJSON}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <FileJson className="size-3.5" />
+                        JSON Data
+                      </button>
+                      <button
+                        onClick={handleExportSVG}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <FileCode className="size-3.5" />
+                        SVG (Vector)
+                      </button>
+                      <div className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-foreground/30">PNG Raster</div>
+                      <button
+                        onClick={() => handleExportPNG(1)}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <ImageIcon className="size-3.5" />
+                        PNG (1x)
+                      </button>
+                      <button
+                        onClick={() => handleExportPNG(2)}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <ImageIcon className="size-3.5" />
+                        PNG (2x - HD)
+                      </button>
+                      <button
+                        onClick={() => handleExportPNG(4)}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <ImageIcon className="size-3.5" />
+                        PNG (4x - Ultra)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Templates */}
                 <button
-                  id="graph-menu-export"
-                  onClick={handleExport}
+                  id="graph-menu-templates"
+                  onClick={() => { setTemplatesModalOpen(true); setMenuOpen(false); }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                 >
-                  <Download className="size-4 shrink-0 text-foreground/50" />
-                  Export as JSON
+                  <Workflow className="size-4 shrink-0 text-foreground/50" />
+                  Templates
                 </button>
 
                 <div className="my-1 h-px bg-black/5 dark:bg-white/5" />
@@ -671,6 +935,7 @@ const Index = () => {
                     ))}
                   </div>
                   <textarea
+                    ref={textareaRef}
                     value={code}
                     onChange={(event) => setCode(event.target.value)}
                     spellCheck={false}
@@ -1033,6 +1298,33 @@ const Index = () => {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">Updated {new Date(g.updatedAt).toLocaleDateString()}</p>
                     </div>
+
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {deletingId === g.id ? (
+                        <div className="flex items-center gap-1.5 animate-in slide-in-from-right-2 fade-in">
+                          <button
+                            onClick={() => handleDeleteGraph(g.id)}
+                            className="bg-destructive text-destructive-foreground text-[10px] font-bold uppercase px-2 py-1 rounded-lg hover:bg-destructive/90 transition-colors"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setDeletingId(null)}
+                            className="bg-black/10 dark:bg-white/10 text-[10px] font-bold uppercase px-2 py-1 rounded-lg hover:bg-black/20 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingId(g.id)}
+                          className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-xl hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          title="Delete graph"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
                   </button>
                 ))
               )}
@@ -1040,6 +1332,51 @@ const Index = () => {
             
             <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
                <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setLoadGraphModalOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {templatesModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl rounded-3xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-black/80">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => setTemplatesModalOpen(false)}
+            >
+              <X className="size-5" />
+            </Button>
+
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Workflow className="size-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Mermaid Templates</h2>
+                <p className="text-sm text-muted-foreground">Jumpstart your diagram with a preset</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
+              {templates.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => handleLoadTemplate(template.code, template.name)}
+                  className="flex flex-col text-left p-4 rounded-2xl border border-transparent bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-foreground group-hover:text-primary transition-colors">{template.name}</span>
+                    <Plus className="size-4 text-muted-foreground group-hover:text-primary" />
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{template.description}</p>
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-black/5 dark:border-white/5">
+               <Button className="w-full rounded-xl py-6 font-semibold" variant="outline" onClick={() => setTemplatesModalOpen(false)}>Close</Button>
             </div>
           </div>
         </div>
