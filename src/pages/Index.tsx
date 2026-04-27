@@ -1,7 +1,7 @@
 import { type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw } from "lucide-react";
+import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -213,6 +213,196 @@ const bracketPairs = [
   ['{', '}'],
 ] as const;
 
+const awsIcons = [
+  { id: "ec2", icon: "aws:res-amazon-ec2", name: "EC2", group: "Compute", glyph: "EC2" },
+  { id: "lambda", icon: "aws:res-amazon-lambda", name: "Lambda", group: "Compute", glyph: "Lambda" },
+  { id: "ecs", icon: "aws:res-amazon-elastic-container-service", name: "ECS", group: "Containers", glyph: "ECS" },
+  { id: "eks", icon: "aws:res-amazon-elastic-kubernetes-service", name: "EKS", group: "Containers", glyph: "EKS" },
+  { id: "s3", icon: "aws:res-amazon-s3", name: "S3", group: "Storage", glyph: "S3" },
+  { id: "efs", icon: "aws:res-amazon-elastic-file-system", name: "EFS", group: "Storage", glyph: "EFS" },
+  { id: "rds", icon: "aws:res-amazon-rds", name: "RDS", group: "Database", glyph: "RDS" },
+  { id: "dynamodb", icon: "aws:res-amazon-dynamodb", name: "DynamoDB", group: "Database", glyph: "DDB" },
+  { id: "aurora", icon: "aws:res-amazon-aurora", name: "Aurora", group: "Database", glyph: "Aurora" },
+  { id: "vpc", icon: "aws:res-amazon-vpc", name: "VPC", group: "Networking", glyph: "VPC" },
+  { id: "cloudfront", icon: "aws:res-amazon-cloudfront", name: "CloudFront", group: "Networking", glyph: "CF" },
+  { id: "route53", icon: "aws:res-amazon-route-53", name: "Route 53", group: "Networking", glyph: "R53" },
+  { id: "apigateway", icon: "aws:res-amazon-api-gateway", name: "API Gateway", group: "Application Integration", glyph: "API" },
+  { id: "sqs", icon: "aws:res-amazon-simple-queue-service", name: "SQS", group: "Application Integration", glyph: "SQS" },
+  { id: "sns", icon: "aws:res-amazon-simple-notification-service", name: "SNS", group: "Application Integration", glyph: "SNS" },
+  { id: "eventbridge", icon: "aws:res-amazon-eventbridge", name: "EventBridge", group: "Application Integration", glyph: "EVB" },
+  { id: "cloudwatch", icon: "aws:res-amazon-cloudwatch", name: "CloudWatch", group: "Management", glyph: "CW" },
+  { id: "iam", icon: "aws:res-amazon-iam", name: "IAM", group: "Security", glyph: "IAM" },
+  { id: "cognito", icon: "aws:res-amazon-cognito", name: "Cognito", group: "Security", glyph: "Cognito" },
+  { id: "secretsmanager", icon: "aws:res-amazon-secrets-manager", name: "Secrets Manager", group: "Security", glyph: "Secrets" },
+] as const;
+
+type AwsIcon = typeof awsIcons[number];
+
+const awsIconPrefixRegex = /^AWS:[A-Za-z0-9 ]+\s+(.+)$/;
+
+const withAwsIconLabel = (label: string, icon: AwsIcon) => {
+  const cleanLabel = label.replace(awsIconPrefixRegex, "$1").trim() || icon.name;
+  return `AWS:${icon.glyph} ${cleanLabel}`;
+};
+
+const awsIconByGlyph = new Map(awsIcons.map((icon) => [icon.glyph, icon]));
+
+const AwsServiceMark = ({ icon, className = "" }: { icon: AwsIcon; className?: string }) => (
+  <span className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#ff9900] text-black shadow-sm ${className}`}>
+    <Cloud className="size-4 opacity-80" />
+    <span className="absolute bottom-0.5 right-0.5 rounded-sm bg-black/75 px-0.5 text-[7px] font-bold leading-none text-white">
+      {icon.glyph}
+    </span>
+  </span>
+);
+
+const awsServiceMarkSvg = (icon: AwsIcon, x: number, y: number) => `
+  <g class="aws-node-icon" transform="translate(${x} ${y}) scale(0.85)">
+    <rect width="34" height="26" rx="5" fill="#ff9900" stroke="rgba(0,0,0,0.18)" stroke-width="1"/>
+    <path d="M11 17.5h13.2c2.3 0 4.2-1.7 4.2-3.9 0-2-1.6-3.7-3.8-3.9C23.7 6.9 21 5 17.8 5c-3.8 0-7 2.6-7.5 6-2.3.2-4 1.6-4 3.4 0 1.8 1.6 3.1 3.7 3.1h1" fill="none" stroke="#111827" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="16" y="15" width="16" height="9" rx="2" fill="#111827"/>
+    <text x="24" y="21.6" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="5.8" font-weight="700" fill="#ffffff">${icon.glyph}</text>
+  </g>
+`;
+
+const enhanceAwsIconsInSvg = (rawSvg: string, code: string) => {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(rawSvg, "image/svg+xml");
+  const svgElement = document.querySelector("svg");
+  if (!svgElement) return rawSvg;
+
+  // 1. Map official icon names back to our AwsIcon objects
+  const iconByOfficialName = new Map(awsIcons.map((icon) => [icon.icon, icon]));
+
+  // 2. Parse code to find node -> icon mapping for the new syntax
+  const nodeIconMap = new Map<string, AwsIcon>();
+  const iconSyntaxRegex = /([\w-]+)\s*@\{[^}]*icon:\s*"([^"]+)"/g;
+  let syntaxMatch;
+  while ((syntaxMatch = iconSyntaxRegex.exec(code)) !== null) {
+    const nodeId = syntaxMatch[1];
+    const iconName = syntaxMatch[2];
+    let icon = iconByOfficialName.get(iconName);
+
+    // If it's an AWS icon but not in our list, create a dynamic one
+    if (!icon && (iconName.startsWith("aws:") || iconName.includes(":aws-"))) {
+      const parts = iconName.split(/[:\/-]/);
+      const glyph = parts[parts.length - 1].toUpperCase().slice(0, 3);
+      icon = { id: iconName, icon: iconName, name: iconName, glyph, group: "AWS" } as any;
+    }
+
+    if (icon) {
+      nodeIconMap.set(nodeId, icon);
+    }
+  }
+
+  const applyAwsIcon = (element: Element, content: string, nodeSpecificIcon?: AwsIcon) => {
+    let icon: AwsIcon | undefined;
+    let cleanText: string;
+
+    if (nodeSpecificIcon) {
+      icon = nodeSpecificIcon;
+      cleanText = content;
+    } else {
+      const match = content.match(/^AWS:([A-Za-z0-9 ]+)\s+(.+)$/);
+      if (!match) return;
+      icon = awsIconByGlyph.get(match[1].trim());
+      cleanText = match[2];
+    }
+
+    if (!icon) return;
+
+    if (cleanText) {
+      element.textContent = cleanText;
+    }
+
+    let x = Number.parseFloat(element.getAttribute("x") ?? "0");
+    let y = Number.parseFloat(element.getAttribute("y") ?? "0");
+
+    // If coordinates are zero, try to find them from other attributes or parent (like foreignObject)
+    if (x === 0 && y === 0) {
+      const fo = element.closest("foreignObject");
+      if (fo) {
+        x = Number.parseFloat(fo.getAttribute("x") ?? "0");
+        y = Number.parseFloat(fo.getAttribute("y") ?? "0");
+      } else {
+        x = Number.parseFloat(element.getAttribute("cx") ?? "0") || Number.parseFloat(element.getAttribute("dx") ?? "0") || 20;
+        y = Number.parseFloat(element.getAttribute("cy") ?? "0") || Number.parseFloat(element.getAttribute("dy") ?? "0") || 15;
+      }
+    }
+
+    const iconX = x - 38;
+    const iconY = y - 11;
+
+    // Use a <g> container instead of <svg> to avoid nested SVG scaling issues
+    const iconDocument = parser.parseFromString(`
+      <g class="aws-node-icon-container" transform="translate(${iconX} ${iconY})">
+        ${awsServiceMarkSvg(icon, 0, 0)}
+      </g>
+    `, "image/svg+xml");
+    const iconG = iconDocument.querySelector("g");
+    const targetParent = element.closest("g.label, g.nodeLabel, g");
+
+    if (iconG && targetParent) {
+      targetParent.insertBefore(document.importNode(iconG, true), targetParent.firstChild);
+    }
+  };
+
+  // Process nodes using the new syntax first (based on node IDs)
+  const svgNodes = Array.from(svgElement.querySelectorAll("g.node"));
+  svgNodes.forEach((nodeGroup) => {
+    // Robust ID matching: look for any part of the ID that matches a key in nodeIconMap
+    const nodeId = nodeGroup.id;
+    let icon: AwsIcon | undefined;
+    for (const [key, iconVal] of nodeIconMap.entries()) {
+      if (nodeId === key || nodeId === `node-${key}` || nodeId.includes(`-${key}-`) || nodeId.endsWith(`-${key}`) || nodeId.startsWith(`${key}-`)) {
+        icon = iconVal;
+        break;
+      }
+    }
+
+    if (icon) {
+      // 1. Remove ANY existing icon-like elements that aren't ours
+      // This prevents "giant" official icons from showing up alongside or instead of ours
+      const elementsToRemove = nodeGroup.querySelectorAll("svg, image, use, .iconify, .mermaid-icon, [data-icon]");
+      elementsToRemove.forEach((el) => {
+        if (!el.closest(".aws-node-icon-container")) {
+          el.remove();
+        }
+      });
+
+      // 2. Find the label text or a suitable anchor
+      const labelText = nodeGroup.querySelector("text, tspan, foreignObject div, foreignObject span, foreignObject p, .label, .nodeLabel");
+      if (labelText) {
+        applyAwsIcon(labelText, labelText.textContent?.trim() ?? "", icon);
+      } else {
+        const shape = nodeGroup.querySelector("rect, circle, polygon, path");
+        if (shape) {
+          applyAwsIcon(shape, "", icon);
+        }
+      }
+    }
+  });
+
+  // Keep legacy support for AWS: prefix in text elements
+  const textElements = Array.from(svgElement.querySelectorAll("text, tspan"));
+  textElements.forEach((textElement) => {
+    const content = textElement.textContent ?? "";
+    if (content.startsWith("AWS:")) {
+      applyAwsIcon(textElement, content);
+    }
+  });
+
+  const htmlLabelElements = Array.from(svgElement.querySelectorAll("foreignObject div, foreignObject span, foreignObject p"));
+  htmlLabelElements.forEach((labelElement) => {
+    const content = labelElement.textContent?.trim() ?? "";
+    if (content.startsWith("AWS:")) {
+      applyAwsIcon(labelElement, content);
+    }
+  });
+
+  return svgElement.outerHTML;
+};
+
 const mermaidKeywords = new Set([
   "flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "gantt",
   "mindmap", "gitGraph", "journey", "timeline", "pie", "quadrantChart", "kanban", "architecture",
@@ -240,7 +430,7 @@ const renderHighlightedLine = (line: string, lineIndex: number) => {
     }
   });
   const isLabelToken = (index: number) => labelRanges.some((range) => index >= range.start && index < range.end);
-  const tokenRegex = /(-->|---|==>|-.->|--x|--o|<-->|<--|--|:::[\w-]+|\|\s*[^|]*\s*\||\b[\w-]+\b|[{}()[\]])/g;
+  const tokenRegex = /(-->|---|==>|-.->|--x|--o|<-->|<--|--|:::[\w-]+|\|\s*[^|]*\s*\||\b[\w-]+\b|[{}()[\]@])/g;
   const parts: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -257,8 +447,9 @@ const renderHighlightedLine = (line: string, lineIndex: number) => {
       /^\|.*\|$/.test(token) ? "text-[#94e2d5]" : "",
       isLabelToken(match.index) && /^[A-Za-z_][\w-]*$/.test(token) ? "text-[#a6e3a1]" : "",
       mermaidKeywords.has(token) && !isLabelToken(match.index) ? "font-semibold text-[#b4befe]" : "",
-      /^[{}()[\]]$/.test(token) ? "text-[#6c7086]" : "",
-      /^[A-Za-z_][\w-]*$/.test(token) && !mermaidKeywords.has(token) && !isLabelToken(match.index) ? "text-[#fab387]" : ""
+      /^[{}()[\]@]$/.test(token) ? "text-[#6c7086]" : "",
+      /^(icon|pos|label|shape)$/.test(token) ? "text-[#f5e0dc] italic" : "", // Properties
+      /^[A-Za-z_][\w-]*$/.test(token) && !mermaidKeywords.has(token) && !isLabelToken(match.index) && !/^(icon|pos|label|shape)$/.test(token) ? "text-[#fab387]" : ""
     );
 
     parts.push(className ? <span key={`${lineIndex}-${match.index}`} className={className}>{token}</span> : token);
@@ -353,6 +544,18 @@ const applyLayoutToSource = (source: string, layout: LayoutRenderer) => {
 };
 
 mermaid.registerLayoutLoaders(elkLayouts);
+if ((mermaid as any).registerIconPacks) {
+  (mermaid as any).registerIconPacks([
+    {
+      name: 'aws',
+      loader: () => fetch((import.meta.env.BASE_URL || '/') + 'icons/aws.json').then(res => res.json()),
+    },
+    {
+      name: 'logos',
+      loader: () => fetch((import.meta.env.BASE_URL || '/') + 'icons/logos.json').then(res => res.json()),
+    }
+  ]);
+}
 mermaid.initialize(getMermaidConfig("base", "elk"));
 
 const Index = () => {
@@ -375,6 +578,8 @@ const Index = () => {
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+  const [iconMenuOpen, setIconMenuOpen] = useState(false);
+  const [awsIconSearch, setAwsIconSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -627,7 +832,7 @@ const Index = () => {
       const id = `diagram-${Date.now()}`;
       const result = await mermaid.render(id, applyLayoutToSource(currentCode, currentLayout));
       if (renderSequenceRef.current === renderSequence) {
-        const prepared = prepareSvgForSharpZoom(result.svg);
+        const prepared = prepareSvgForSharpZoom(enhanceAwsIconsInSvg(result.svg, currentCode));
         setSvg(prepared.svg);
         setSvgSize(prepared.size);
         setError("");
@@ -882,6 +1087,11 @@ const Index = () => {
             return line.replace(styleRegex, `$1${nextId}`);
           }
 
+          const iconPropRegex = new RegExp(`^(\\s*)${escapeRegExp(previousId)}(@\\{.*?icon:.*?\\})`);
+          if (iconPropRegex.test(line)) {
+            return line.replace(iconPropRegex, `$1${nextId}$2`);
+          }
+
           const classMatch = line.match(/^(\s*class\s+)(.+?)(\s+[\w-]+\s*;?\s*)$/);
           if (!classMatch) return line;
 
@@ -952,6 +1162,60 @@ const Index = () => {
     setColorPickerTarget(null);
   };
 
+  const handleAwsIconSelect = (icon: AwsIcon) => {
+    if (!colorPickerTarget) return;
+    const { id } = colorPickerTarget;
+
+    setCode((prevCode) => {
+      let nextCode = prevCode;
+
+      // 1. Remove existing icon definition for this node
+      const existingIconRegex = new RegExp(`^\\s*${escapeRegExp(id)}@\\{.*?icon:.*?\\}.*$`, "gm");
+      nextCode = nextCode.replace(existingIconRegex, "");
+
+      // 2. Clean up the node's label if it has the old AWS: prefix
+      const lines = nextCode.split("\n");
+      const nodeRegex = new RegExp(`(^|[\\s,;])(${escapeRegExp(id)})(?=$|[\\s\\[\\(\\{>])`);
+      let replacedLabel = false;
+
+      const nextLines = lines.map((line) => {
+        if (replacedLabel) return line;
+        const match = nodeRegex.exec(line);
+        if (!match) return line;
+
+        const labelStart = match.index + match[1].length + match[2].length;
+        const rest = line.slice(labelStart);
+        const pair = bracketPairs.find(([open]) => rest.startsWith(open));
+
+        if (pair) {
+          const [open, close] = pair;
+          const contentStart = open.length;
+          const contentEnd = rest.indexOf(close, contentStart);
+          if (contentEnd !== -1) {
+            const currentLabel = rest.slice(contentStart, contentEnd);
+            if (awsIconPrefixRegex.test(currentLabel)) {
+              replacedLabel = true;
+              const cleanLabel = currentLabel.replace(awsIconPrefixRegex, "$1").trim() || icon.name;
+              return `${line.slice(0, labelStart)}${open}${cleanLabel}${close}${rest.slice(contentEnd + close.length)}`;
+            }
+          }
+        }
+        return line;
+      });
+
+      nextCode = nextLines.join("\n");
+
+      // 3. Add the new icon definition on a new line
+      nextCode += `\n  ${id}@{ icon: "${icon.icon}" }`;
+
+      return nextCode.replace(/\n{3,}/g, "\n\n").trim();
+    });
+
+    setNodeDraft((draft) => ({ ...draft, label: draft.label.replace(awsIconPrefixRegex, "$1").trim() || icon.name }));
+    setIconMenuOpen(false);
+    setAwsIconSearch("");
+  };
+
   const classDefinitions = useMemo(() => {
     const classDefs: { name: string, fill: string | null }[] = [];
     const regex = /^\s*classDef\s+([\w-]+)\s+(.+)$/gm;
@@ -972,6 +1236,15 @@ const Index = () => {
     () => classDefinitions.filter((classDef) => !classDef.name.startsWith('color-')),
     [classDefinitions]
   );
+
+  const filteredAwsIcons = useMemo(() => {
+    const query = awsIconSearch.trim().toLowerCase();
+    if (!query) return awsIcons;
+
+    return awsIcons.filter((icon) =>
+      `${icon.name} ${icon.group} ${icon.glyph}`.toLowerCase().includes(query)
+    );
+  }, [awsIconSearch]);
 
   const selectedNodeState = useMemo(() => {
     if (!colorPickerTarget) return null;
@@ -1498,6 +1771,57 @@ const Index = () => {
                       </div>
                     </div>
                     )}
+
+                    <div className="pt-2 border-t border-black/5 dark:border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => setIconMenuOpen((value) => !value)}
+                        className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground/50 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Cloud className="size-3.5" />
+                          Icons
+                        </span>
+                        <ChevronRight className={`size-3.5 transition-transform duration-200 ${iconMenuOpen ? "rotate-90" : ""}`} />
+                      </button>
+
+                      {iconMenuOpen && (
+                        <div className="mt-1 space-y-2 animate-in slide-in-from-top-1">
+                          <div className="rounded-xl border border-black/5 bg-white/60 p-2 dark:border-white/5 dark:bg-black/40">
+                            <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/5 bg-white/70 px-2 dark:border-white/5 dark:bg-black/30">
+                              <Search className="size-3.5 text-foreground/40" />
+                              <input
+                                value={awsIconSearch}
+                                onChange={(event) => setAwsIconSearch(event.target.value)}
+                                placeholder="Search AWS"
+                                className="h-8 min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-foreground/35"
+                              />
+                            </div>
+                            <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                              {filteredAwsIcons.length === 0 ? (
+                                <div className="px-2 py-2 text-xs text-foreground/45">No AWS icons found</div>
+                              ) : (
+                                filteredAwsIcons.map((icon) => (
+                                  <button
+                                    key={icon.id}
+                                    type="button"
+                                    onClick={() => handleAwsIconSelect(icon)}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                                    title={`Use ${icon.name}`}
+                                  >
+                                    <AwsServiceMark icon={icon} className="h-7 w-9" />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate text-xs font-semibold text-foreground/80">{icon.name}</span>
+                                      <span className="block truncate text-[10px] text-foreground/45">{icon.group}</span>
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
                     <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>

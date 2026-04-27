@@ -148,4 +148,31 @@ All colors MUST be HSL.
     background-clip: text;
     color: transparent;
   }
+
+  /* Constrain icons in Mermaid nodes to prevent "giant" icons */
+  .node svg,
+  .node image,
+  .node use,
+  .node .iconify,
+  .node .mermaid-icon,
+  .aws-node-icon-container {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+  }
+
+  /* Specific refinement for our AWS icons which are slightly wider */
+  .aws-node-icon-container {
+    width: 28px !important;
+    height: 22px !important;
+    max-width: 28px !important;
+    max-height: 22px !important;
+    overflow: hidden !important;
+  }
+
+  .aws-node-icon rect {
+    /* Rely on SVG attributes for base size to ensure correct scaling */
+    shape-rendering: crispEdges;
+  }
 }
