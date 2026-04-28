@@ -1734,16 +1734,9 @@ const Index = () => {
                   {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
                 </Button>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-                <Workflow className="size-4 text-foreground/80" />
-                <select
-                  value={layout}
-                  onChange={(event) => setLayout(event.target.value as LayoutRenderer)}
-                  aria-label="Change layout"
-                  className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
-                >
-                  <option value="elk" className="bg-background">ELK</option>
-                  <option value="dagre-wrapper" className="bg-background">Dagre</option>
-                </select>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setLayout(layout === "elk" ? "dagre-wrapper" : "elk")} aria-label={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`} title={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`}>
+                  <Workflow className="size-4" />
+                </Button>
                 <Palette className="size-4 text-foreground/80" />
                 <select
                   value={diagramTheme}
