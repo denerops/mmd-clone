@@ -1,7 +1,7 @@
 import { type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw } from "lucide-react";
+import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -205,7 +205,7 @@ const bracketPairs = [
   ['[(', ')]'],
   ['([', '])'],
   ['((', '))'],
-  ['[/','/]'],
+  ['[/', '/]'],
   ['[\\', '\\]'],
   ['{{', '}}'],
   ['[', ']'],
@@ -558,6 +558,48 @@ if ((mermaid as any).registerIconPacks) {
 }
 mermaid.initialize(getMermaidConfig("base", "elk"));
 
+// ─── Smart Zoom Helpers ──────────────────────────────────────────────────────
+const getElementBounds = (element: Element | null): { x: number; y: number; width: number; height: number } | null => {
+  if (!element) return null;
+  try {
+    const bbox = (element as any).getBBox?.();
+    if (bbox) {
+      return { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height };
+    }
+  } catch {
+    // Some elements might not support getBBox
+  }
+  return null;
+};
+
+const calculateZoomToFit = (
+  contentBounds: { x: number; y: number; width: number; height: number },
+  viewportSize: { width: number; height: number },
+  padding: number = 50
+): { zoom: number; panX: number; panY: number } => {
+  const availableWidth = viewportSize.width - padding * 2;
+  const availableHeight = viewportSize.height - padding * 2;
+
+  const zoomX = availableWidth / contentBounds.width;
+  const zoomY = availableHeight / contentBounds.height;
+
+  // Use the smaller zoom to ensure content fits in viewport
+  const zoom = Math.min(zoomX, zoomY, 200); // Cap at 200% for quality
+
+  // Calculate pan to center the content
+  const contentCenterX = contentBounds.x + contentBounds.width / 2;
+  const contentCenterY = contentBounds.y + contentBounds.height / 2;
+
+  const panX = -contentCenterX * (zoom / 100);
+  const panY = -contentCenterY * (zoom / 100);
+
+  return {
+    zoom: Math.max(10, Math.round(zoom * 100) / 100),
+    panX: Math.round(panX),
+    panY: Math.round(panY)
+  };
+};
+
 const Index = () => {
   const { theme, setTheme } = useTheme();
 
@@ -890,6 +932,81 @@ const Index = () => {
 
   const adjustZoom = (delta: number) => {
     setZoom((value) => Math.max(1, Math.round((value + delta) * 100) / 100));
+  };
+
+  const handleZoomToFit = () => {
+    if (!boardRef.current || !svg) return;
+
+    const boardRect = boardRef.current.getBoundingClientRect();
+    const viewportSize = { width: boardRect.width, height: boardRect.height };
+
+    const zoomParams = calculateZoomToFit(
+      { x: 0, y: 0, width: svgSize.width, height: svgSize.height },
+      viewportSize,
+      40
+    );
+
+    setZoom(zoomParams.zoom);
+    setPan({ x: zoomParams.panX, y: zoomParams.panY });
+  };
+
+  const handleZoomToSelection = () => {
+    if (!colorPickerTarget || !boardRef.current || !svg) return;
+
+    // Find the SVG element in the board
+    const svgElement = boardRef.current.querySelector('svg');
+    if (!svgElement) {
+      toast.error("Diagram not rendered yet");
+      return;
+    }
+
+    // Search for the node group element that contains this node
+    const nodeId = colorPickerTarget.id;
+    let targetElement: Element | null = null;
+
+    // Try different patterns to find the node
+    const patterns = [
+      `[id$="-${nodeId}"]`, // Ends with node ID
+      `[id*="-${nodeId}-"]`, // Contains node ID with suffixes
+      `[id="${nodeId}"]`, // Exact match
+    ];
+
+    for (const pattern of patterns) {
+      targetElement = svgElement.querySelector(pattern);
+      if (targetElement) break;
+    }
+
+    // If still not found, search through all groups with class containing "node"
+    if (!targetElement) {
+      const nodeGroups = svgElement.querySelectorAll('g[class*="node"]');
+      for (const group of nodeGroups) {
+        const groupId = group.getAttribute('id') || '';
+        if (groupId.includes(nodeId) || groupId.endsWith(`-${nodeId}`)) {
+          targetElement = group;
+          break;
+        }
+      }
+    }
+
+    if (!targetElement) {
+      toast.error("Selected element not found in diagram");
+      return;
+    }
+
+    const bounds = getElementBounds(targetElement);
+
+    if (!bounds || bounds.width === 0 || bounds.height === 0) {
+      toast.error("Could not calculate element bounds");
+      return;
+    }
+
+    const boardRect = boardRef.current.getBoundingClientRect();
+    const viewportSize = { width: boardRect.width, height: boardRect.height };
+
+    const zoomParams = calculateZoomToFit(bounds, viewportSize, 80);
+
+    setZoom(zoomParams.zoom);
+    setPan({ x: zoomParams.panX, y: zoomParams.panY });
   };
 
   const handleBoardWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -1654,6 +1771,12 @@ const Index = () => {
                 <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
                   <Focus />
                 </Button>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleZoomToFit} aria-label="Zoom to fit entire diagram" title="Fit entire diagram in view">
+                  <Frame className="size-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleZoomToSelection} disabled={!colorPickerTarget} aria-label="Zoom to selected element" title="Zoom to selected element">
+                  <Pointer className="size-4" />
+                </Button>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
                 <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
                   {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
@@ -1685,91 +1808,88 @@ const Index = () => {
                     style={{ animationDuration: "150ms" }}
                   >
                     {selectedNodeState && (
-                    <div className="space-y-2 rounded-xl border border-black/5 bg-white/60 px-3 py-2 text-xs shadow-sm dark:border-white/5 dark:bg-black/40">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Name</label>
-                        <input
-                          value={nodeDraft.id}
-                          onChange={(event) => setNodeDraft((draft) => ({ ...draft, id: event.target.value }))}
-                          onBlur={updateNodeDetails}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") updateNodeDetails();
-                            if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
-                          }}
-                          className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 font-semibold text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
-                        />
+                      <div className="space-y-2 rounded-xl border border-black/5 bg-white/60 px-3 py-2 text-xs shadow-sm dark:border-white/5 dark:bg-black/40">
+                        <div>
+                          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Name</label>
+                          <input
+                            value={nodeDraft.id}
+                            onChange={(event) => setNodeDraft((draft) => ({ ...draft, id: event.target.value }))}
+                            onBlur={updateNodeDetails}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") updateNodeDetails();
+                              if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
+                            }}
+                            className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 font-semibold text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Description</label>
+                          <input
+                            value={nodeDraft.label}
+                            onChange={(event) => setNodeDraft((draft) => ({ ...draft, label: event.target.value }))}
+                            onBlur={updateNodeDetails}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") updateNodeDetails();
+                              if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
+                            }}
+                            className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">Description</label>
-                        <input
-                          value={nodeDraft.label}
-                          onChange={(event) => setNodeDraft((draft) => ({ ...draft, label: event.target.value }))}
-                          onBlur={updateNodeDetails}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") updateNodeDetails();
-                            if (event.key === "Escape") setNodeDraft({ id: selectedNodeState.id, label: selectedNodeState.label });
-                          }}
-                          className="h-8 w-full rounded-lg border border-black/5 bg-white/70 px-2 text-foreground outline-none transition-colors focus:border-primary dark:border-white/5 dark:bg-black/30"
-                        />
-                      </div>
-                    </div>
                     )}
 
                     <div>
-                    <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Colors</div>
-                    <div className="grid grid-cols-7 gap-1.5">
-                      <button
-                        className={`size-6 flex items-center justify-center rounded-full border bg-white/50 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm ${
-                          selectedNodeState && !selectedNodeState.color
+                      <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Colors</div>
+                      <div className="grid grid-cols-7 gap-1.5">
+                        <button
+                          className={`size-6 flex items-center justify-center rounded-full border bg-white/50 dark:bg-black/50 hover:scale-110 transition-transform focus:outline-none shadow-sm ${selectedNodeState && !selectedNodeState.color
                             ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
                             : "border-black/10 dark:border-white/10"
-                        }`}
-                        onClick={() => handleClassSelect('transparent')}
-                        aria-label="Remove style"
-                        title="Remove custom style"
-                      >
-                        <Minus className="size-3 text-foreground/70" />
-                      </button>
-                      {nodeColors.map(color => (
-                        <button
-                          key={color}
-                          className={`size-6 rounded-full border transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${
-                            selectedNodeState?.color?.toLowerCase() === color.toLowerCase()
+                            }`}
+                          onClick={() => handleClassSelect('transparent')}
+                          aria-label="Remove style"
+                          title="Remove custom style"
+                        >
+                          <Minus className="size-3 text-foreground/70" />
+                        </button>
+                        {nodeColors.map(color => (
+                          <button
+                            key={color}
+                            className={`size-6 rounded-full border transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${selectedNodeState?.color?.toLowerCase() === color.toLowerCase()
                               ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
                               : "border-black/10 dark:border-white/10"
-                          }`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => handleClassSelect(`color-${color.replace('#', '')}`, color)}
-                          aria-label={`Select color ${color}`}
-                          title={selectedNodeState?.color?.toLowerCase() === color.toLowerCase() ? "Selected color" : `Select color ${color}`}
-                        />
-                      ))}
-                    </div>
-                    </div>
-
-                    {customClasses.length > 0 && (
-                    <div className="pt-2 border-t border-black/5 dark:border-white/5">
-                      <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Diagram Classes</div>
-                      <div className="flex flex-wrap gap-1.5 px-1">
-                        {customClasses.map(cls => (
-                          <button
-                            key={cls.name}
-                            className={`px-2 py-1 text-[11px] font-medium rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shadow-sm flex items-center gap-1.5 ${
-                              selectedNodeState?.className === cls.name
-                                ? "border-primary text-primary"
-                                : "border-black/5 dark:border-white/5"
-                            }`}
-                            onClick={() => handleClassSelect(cls.name)}
-                            title={selectedNodeState?.className === cls.name ? "Selected class" : cls.name}
-                          >
-                            {cls.fill && (
-                              <span className="size-2.5 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: cls.fill }} />
-                            )}
-                            {cls.name}
-                          </button>
+                              }`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => handleClassSelect(`color-${color.replace('#', '')}`, color)}
+                            aria-label={`Select color ${color}`}
+                            title={selectedNodeState?.color?.toLowerCase() === color.toLowerCase() ? "Selected color" : `Select color ${color}`}
+                          />
                         ))}
                       </div>
                     </div>
+
+                    {customClasses.length > 0 && (
+                      <div className="pt-2 border-t border-black/5 dark:border-white/5">
+                        <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Diagram Classes</div>
+                        <div className="flex flex-wrap gap-1.5 px-1">
+                          {customClasses.map(cls => (
+                            <button
+                              key={cls.name}
+                              className={`px-2 py-1 text-[11px] font-medium rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shadow-sm flex items-center gap-1.5 ${selectedNodeState?.className === cls.name
+                                ? "border-primary text-primary"
+                                : "border-black/5 dark:border-white/5"
+                                }`}
+                              onClick={() => handleClassSelect(cls.name)}
+                              title={selectedNodeState?.className === cls.name ? "Selected class" : cls.name}
+                            >
+                              {cls.fill && (
+                                <span className="size-2.5 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: cls.fill }} />
+                              )}
+                              {cls.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
@@ -1824,35 +1944,34 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-black/5 dark:border-white/5">
-                    <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>
-                    <div className="grid grid-cols-7 gap-1.5">
-                      {shapeOptions.map(shape => (
-                        <button
-                          key={shape.id}
-                          className={`group relative size-8 flex items-center justify-center rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${
-                            selectedNodeState?.shape.id === shape.id
+                      <div className="w-full text-[10px] font-semibold uppercase tracking-wider text-foreground/50 mb-1.5 px-1">Shapes</div>
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {shapeOptions.map(shape => (
+                          <button
+                            key={shape.id}
+                            className={`group relative size-8 flex items-center justify-center rounded-lg border bg-white/60 dark:bg-black/40 hover:bg-black/5 dark:hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-primary shadow-sm ${selectedNodeState?.shape.id === shape.id
                               ? "border-primary text-primary"
                               : "border-black/5 dark:border-white/5"
-                          }`}
-                          onClick={() => handleShapeSelect(shape.id)}
-                          title={selectedNodeState?.shape.id === shape.id ? `${shape.label} selected` : shape.label}
-                        >
-                          {shape.id === "hexagon" ? (
-                            <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 20" fill="none" aria-hidden="true">
-                              <path d="M6.5 1.5H17.5L22.5 10L17.5 18.5H6.5L1.5 10L6.5 1.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                            </svg>
-                          ) : shape.id === "database" ? (
-                            <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                              <ellipse cx="12" cy="5.5" rx="7" ry="3.5" stroke="currentColor" strokeWidth="1.8" />
-                              <path d="M5 5.5V18.5C5 20.43 8.13 22 12 22C15.87 22 19 20.43 19 18.5V5.5" stroke="currentColor" strokeWidth="1.8" />
-                              <path d="M5 12C5 13.93 8.13 15.5 12 15.5C15.87 15.5 19 13.93 19 12" stroke="currentColor" strokeWidth="1.8" />
-                            </svg>
-                          ) : (
-                            <div className={`size-4 border transition-colors ${selectedNodeState?.shape.id === shape.id ? "border-primary" : "border-foreground/40 group-hover:border-primary"} ${shape.class}`} />
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                              }`}
+                            onClick={() => handleShapeSelect(shape.id)}
+                            title={selectedNodeState?.shape.id === shape.id ? `${shape.label} selected` : shape.label}
+                          >
+                            {shape.id === "hexagon" ? (
+                              <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 20" fill="none" aria-hidden="true">
+                                <path d="M6.5 1.5H17.5L22.5 10L17.5 18.5H6.5L1.5 10L6.5 1.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                              </svg>
+                            ) : shape.id === "database" ? (
+                              <svg className={`size-5 transition-colors ${selectedNodeState?.shape.id === shape.id ? "text-primary" : "text-foreground/40 group-hover:text-primary"}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <ellipse cx="12" cy="5.5" rx="7" ry="3.5" stroke="currentColor" strokeWidth="1.8" />
+                                <path d="M5 5.5V18.5C5 20.43 8.13 22 12 22C15.87 22 19 20.43 19 18.5V5.5" stroke="currentColor" strokeWidth="1.8" />
+                                <path d="M5 12C5 13.93 8.13 15.5 12 15.5C15.87 15.5 19 13.93 19 12" stroke="currentColor" strokeWidth="1.8" />
+                              </svg>
+                            ) : (
+                              <div className={`size-4 border transition-colors ${selectedNodeState?.shape.id === shape.id ? "border-primary" : "border-foreground/40 group-hover:border-primary"} ${shape.class}`} />
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2029,8 +2148,8 @@ const Index = () => {
                     key={g.id}
                     onClick={() => switchGraph(g.id)}
                     className={`flex w-full items-center gap-4 rounded-2xl p-4 text-left transition-all border group ${g.id === activeId
-                        ? "bg-primary/10 border-primary/20 ring-1 ring-primary/20"
-                        : "bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      ? "bg-primary/10 border-primary/20 ring-1 ring-primary/20"
+                      : "bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
                       }`}
                   >
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${g.id === activeId ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:text-foreground"
