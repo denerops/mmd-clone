@@ -62,55 +62,55 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 13% 10%;
-    --foreground: 220 10% 98%;
+    --background: 260 30% 8%;
+    --foreground: 270 20% 95%;
 
-    --card: 220 13% 12%;
-    --card-foreground: 220 10% 98%;
+    --card: 260 25% 12%;
+    --card-foreground: 270 20% 95%;
 
-    --popover: 220 13% 12%;
-    --popover-foreground: 220 10% 98%;
+    --popover: 260 25% 12%;
+    --popover-foreground: 270 20% 95%;
 
-    --primary: 174 84% 45%;
-    --primary-foreground: 180 60% 10%;
-    --primary-glow: 192 90% 64%;
+    --primary: 260 100% 60%;
+    --primary-foreground: 260 30% 10%;
+    --primary-glow: 280 100% 65%;
 
-    --secondary: 220 13% 18%;
-    --secondary-foreground: 220 10% 98%;
+    --secondary: 260 25% 18%;
+    --secondary-foreground: 270 20% 95%;
 
-    --muted: 220 13% 18%;
-    --muted-foreground: 220 10% 65%;
+    --muted: 260 25% 20%;
+    --muted-foreground: 260 20% 65%;
 
-    --accent: 220 13% 18%;
-    --accent-foreground: 220 10% 98%;
+    --accent: 280 80% 55%;
+    --accent-foreground: 270 20% 95%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 220 10% 98%;
+    --destructive-foreground: 270 20% 95%;
 
-    --border: 220 13% 20%;
-    --input: 220 13% 20%;
-    --ring: 174 84% 45%;
+    --border: 260 25% 22%;
+    --input: 260 25% 22%;
+    --ring: 280 100% 55%;
 
     --editor: 240 21% 15%;
     --editor-foreground: 226 64% 88%;
     --editor-line: 237 16% 23%;
-    --board: 220 13% 12%;
-    --board-foreground: 220 10% 90%;
-    --board-grid: 220 13% 16%;
-    --gradient-surface: linear-gradient(135deg, hsl(220 13% 14%), hsl(220 13% 10%));
-    --gradient-board: radial-gradient(circle at 32px 32px, hsl(var(--board-grid)) 1px, transparent 1.5px), linear-gradient(135deg, hsl(var(--board)), hsl(220 13% 8%));
+    --board: 260 25% 12%;
+    --board-foreground: 270 20% 90%;
+    --board-grid: 260 25% 16%;
+    --gradient-surface: linear-gradient(135deg, hsl(260 30% 10%), hsl(280 40% 12%));
+    --gradient-board: radial-gradient(circle at 32px 32px, hsl(var(--board-grid)) 1px, transparent 1.5px), linear-gradient(135deg, hsl(var(--board)), hsl(270 35% 8%));
     --gradient-brand: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)), hsl(var(--accent)));
-    --shadow-board: 0 24px 70px -32px hsl(0 0% 0% / 0.8);
-    --shadow-control: 0 14px 36px -24px hsl(0 0% 0% / 0.8);
+    --shadow-board: 0 24px 70px -32px hsl(260 50% 10% / 0.9);
+    --shadow-control: 0 14px 36px -24px hsl(260 50% 10% / 0.9);
 
-    --sidebar-background: 220 13% 10%;
-    --sidebar-foreground: 220 10% 98%;
-    --sidebar-primary: 220 13% 15%;
-    --sidebar-primary-foreground: 220 10% 98%;
-    --sidebar-accent: 220 13% 15%;
-    --sidebar-accent-foreground: 220 10% 98%;
-    --sidebar-border: 220 13% 20%;
-    --sidebar-ring: 174 84% 45%;
+    --sidebar-background: 260 30% 8%;
+    --sidebar-foreground: 270 20% 95%;
+    --sidebar-primary: 280 60% 25%;
+    --sidebar-primary-foreground: 270 20% 95%;
+    --sidebar-accent: 280 60% 25%;
+    --sidebar-accent-foreground: 270 20% 95%;
+    --sidebar-border: 260 25% 22%;
+    --sidebar-ring: 280 100% 55%;
   }
 }
 
@@ -131,7 +131,33 @@ All colors MUST be HSL.
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  textarea, code, pre {
+  /* Space theme background with stars */
+  .dark body {
+    background:
+      radial-gradient(1px 1px at 20% 30%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1px 1px at 60% 70%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1.5px 1.5px at 50% 50%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1px 1px at 80% 10%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(2px 2px at 90% 60%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1px 1px at 30% 80%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1px 1px at 10% 90%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1.5px 1.5px at 40% 20%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(1px 1px at 70% 40%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(2px 2px at 15% 50%, white, rgba(255, 255, 255, 0)),
+      radial-gradient(ellipse at 20% 50%, hsl(260 40% 15%) 0%, hsl(260 30% 8%) 50%, hsl(240 50% 5%) 100%);
+    background-attachment: fixed;
+    background-size: 120% 120%;
+    background-position: center;
+    position: relative;
+  }
+
+  .dark #root {
+    backdrop-filter: blur(0.5px);
+  }
+
+  textarea,
+  code,
+  pre {
     font-family: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, monospace;
   }
 }
@@ -139,7 +165,9 @@ All colors MUST be HSL.
 @layer utilities {
   .board-grid {
     background-image: var(--gradient-board);
-    background-size: 48px 48px, auto;
+    background-size: 48px 48px, 120% 120%;
+    background-attachment: fixed;
+    background-position: center, center;
   }
 
   .text-brand-gradient {
@@ -174,5 +202,93 @@ All colors MUST be HSL.
   .aws-node-icon rect {
     /* Rely on SVG attributes for base size to ensure correct scaling */
     shape-rendering: crispEdges;
+  }
+
+  /* Space theme animations and effects */
+  @keyframes twinkle {
+
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  /* Frosted glass effect for cards in dark mode */
+  .dark [class*="card"],
+  .dark [class*="Card"],
+  .dark .popover,
+  .dark [role="menu"],
+  .dark [role="dialog"],
+  .dark .dropdown,
+  .dark .menu {
+    background: hsl(260 40% 12% / 0.45) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid hsl(280 100% 60% / 0.15) !important;
+    box-shadow:
+      0 8px 32px 0 hsl(260 50% 10% / 0.3),
+      inset 0 1px 0 0 hsl(280 100% 70% / 0.1),
+      inset 0 -1px 0 0 hsl(260 20% 5% / 0.3) !important;
+  }
+
+  .dark .popover-trigger:focus {
+    outline: none;
+    ring: hsl(280 100% 55%) !important;
+  }
+
+  /* Enhanced glass effect on hover */
+  .dark [class*="card"]:hover,
+  .dark [class*="Card"]:hover,
+  .dark .popover:hover,
+  .dark [role="menu"]:hover,
+  .dark [role="dialog"]:hover {
+    background: hsl(260 40% 14% / 0.55) !important;
+    box-shadow:
+      0 12px 48px 0 hsl(260 50% 10% / 0.4),
+      inset 0 1px 0 0 hsl(280 100% 70% / 0.15),
+      inset 0 -1px 0 0 hsl(260 20% 5% / 0.4) !important;
+  }
+
+  /* Purple glow effect on hover for interactive elements */
+  .dark button:hover,
+  .dark a:hover,
+  .dark [role=\"button\"]:hover {
+    text-shadow: 0 0 8px hsl(280 100% 60% / 0.4);
+  }
+
+  /* Accent glow for primary actions */
+  .dark button[class*=\"primary\"],
+  .dark [class*=\"primary\"] button {
+    background: hsl(260 100% 60% / 0.9) !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow:
+      0 0 20px hsl(280 100% 60% / 0.5),
+      0 0 40px hsl(280 100% 55% / 0.2),
+      inset 0 1px 0 0 hsl(280 100% 80% / 0.2) !important;
+    transition: all 0.3s ease;
+    border: 1px solid hsl(280 100% 70% / 0.3) !important;
+  }
+
+  .dark button[class*=\"primary\"]:hover,
+  .dark [class*=\"primary\"] button:hover {
+    box-shadow:
+      0 0 30px hsl(280 100% 60% / 0.8),
+      0 0 60px hsl(280 100% 55% / 0.3),
+      inset 0 1px 0 0 hsl(280 100% 80% / 0.3) !important;
   }
 }
