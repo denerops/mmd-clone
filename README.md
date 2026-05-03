@@ -2,45 +2,39 @@
 
 A frontend-only, browser-based Mermaid diagram editor with live preview, zooming, and modern UI design.
 
-## How to Build and Run the Project
+## Quickstart
 
-This project uses Vite and React. You can use `npm` or `bun` to run the project.
-
-### Prerequisites
-
-- Node.js (v18+)
-- npm or bun
-
-### Local Development
-
-1. Install dependencies:
+1. Install dependencies
    ```bash
    npm install
-   # or
-   bun install
    ```
-
-2. Start the development server:
+2. Start development server
    ```bash
    npm run dev
-   # or
-   bun run dev
    ```
 
-### Production Build
+## Vibe Coding Workflow
 
-To build the project for production:
+- Run full quality gate:
+  ```bash
+  npm run check
+  ```
+- Auto-fix lint issues:
+  ```bash
+  npm run lint:fix
+  ```
+- Fast focused loops:
+  ```bash
+  npm run test:watch
+  ```
 
-```bash
-npm run build
-# or
-bun run build
-```
+## Scripts
 
-The compiled assets will be placed in the `dist` directory. You can preview the production build locally with:
-
-```bash
-npm run preview
-# or
-bun run preview
-```
+- `npm run dev` - run Vite dev server
+- `npm run build` - build production assets
+- `npm run preview` - preview production build
+- `npm run lint` - run ESLint
+- `npm run lint:fix` - auto-fix lint
+- `npm run typecheck` - run TypeScript checks
+- `npm run test` - run Vitest once
+- `npm run test:watch` - run Vitest in watch mode
