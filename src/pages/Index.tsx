@@ -531,10 +531,36 @@ const Index = () => {
   const [activeFindMatch, setActiveFindMatch] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
+  const panRef = useRef({ x: 0, y: 0 });
+  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
+  const panRafRef = useRef<number | null>(null);
   const renderSequenceRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  useEffect(() => {
+    return () => {
+      if (panRafRef.current !== null) {
+        cancelAnimationFrame(panRafRef.current);
+      }
+    };
+  }, []);
+
+  const schedulePanUpdate = (nextPan: { x: number; y: number }) => {
+    pendingPanRef.current = nextPan;
+    if (panRafRef.current !== null) return;
+    panRafRef.current = requestAnimationFrame(() => {
+      panRafRef.current = null;
+      if (!pendingPanRef.current) return;
+      setPan(pendingPanRef.current);
+      pendingPanRef.current = null;
+    });
+  };
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   const findMatches = useMemo(() => {
@@ -1108,13 +1134,13 @@ const Index = () => {
     if ((!isPrimaryModifier && !handMode) || event.button !== 0) return;
     event.preventDefault();
     setIsPanning(true);
-    dragRef.current = { startX: event.clientX, startY: event.clientY, panX: pan.x, panY: pan.y };
+    dragRef.current = { startX: event.clientX, startY: event.clientY, panX: panRef.current.x, panY: panRef.current.y };
   };
 
   const handleBoardMouseMove = (event: MouseEvent<HTMLDivElement>) => {
     if (!isPanning) return;
     event.preventDefault();
-    setPan({
+    schedulePanUpdate({
       x: dragRef.current.panX + event.clientX - dragRef.current.startX,
       y: dragRef.current.panY + event.clientY - dragRef.current.startY,
     });
@@ -1122,6 +1148,14 @@ const Index = () => {
 
   const handleBoardMouseUp = (event: MouseEvent<HTMLDivElement>) => {
     if (isPanning) {
+      if (panRafRef.current !== null) {
+        cancelAnimationFrame(panRafRef.current);
+        panRafRef.current = null;
+      }
+      if (pendingPanRef.current) {
+        setPan(pendingPanRef.current);
+        pendingPanRef.current = null;
+      }
       setIsPanning(false);
       return;
     }
@@ -1199,6 +1233,14 @@ const Index = () => {
   };
 
   const handleBoardMouseLeave = () => {
+    if (panRafRef.current !== null) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
+    }
+    if (pendingPanRef.current) {
+      setPan(pendingPanRef.current);
+      pendingPanRef.current = null;
+    }
     setIsPanning(false);
   };
 
@@ -2041,7 +2083,7 @@ const Index = () => {
               onMouseMove={handleBoardMouseMove}
               onMouseUp={handleBoardMouseUp}
               onMouseLeave={handleBoardMouseLeave}
-              className={`board-grid relative h-full overflow-hidden animate-grid-drift ${isPanning ? "cursor-grabbing select-none" : handMode ? "cursor-grab" : "cursor-default"}`}
+              className={`board-grid relative h-full overflow-hidden ${isPanning ? "cursor-grabbing select-none" : handMode ? "cursor-grab" : "cursor-default"} ${isPanning ? "" : "animate-grid-drift"}`}
             >
               {colorPickerTarget && (
                 <div
@@ -2232,7 +2274,7 @@ const Index = () => {
                   </div>
                 )}
                 <div
-                  className="absolute left-1/2 top-1/2 origin-center transition-[width,height,transform] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
+                  className="absolute left-1/2 top-1/2 origin-center will-change-transform transition-[width,height] duration-200 [&_svg]:!h-full [&_svg]:!w-full [&_svg]:!max-w-none [&_svg]:overflow-visible"
                   style={{
                     width: `${svgSize.width * (zoom / 100)}px`,
                     height: `${svgSize.height * (zoom / 100)}px`,
