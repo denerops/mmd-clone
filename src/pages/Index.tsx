@@ -1475,6 +1475,74 @@ const Index = () => {
                       ref={textareaRef}
                       value={code}
                       onChange={(event) => setCode(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Tab") return;
+
+                        event.preventDefault();
+
+                        const textarea = event.currentTarget;
+                        const indent = "  ";
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const value = textarea.value;
+
+                        const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+                        const lineEndIndex = value.indexOf("\n", end);
+                        const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+                        const selectedBlock = value.slice(lineStart, lineEnd);
+
+                        if (!event.shiftKey) {
+                          if (start === end) {
+                            const nextValue = `${value.slice(0, start)}${indent}${value.slice(end)}`;
+                            setCode(nextValue);
+                            requestAnimationFrame(() => {
+                              textarea.setSelectionRange(start + indent.length, start + indent.length);
+                            });
+                            return;
+                          }
+
+                          const indentedBlock = selectedBlock
+                            .split("\n")
+                            .map((line) => `${indent}${line}`)
+                            .join("\n");
+                          const nextValue = `${value.slice(0, lineStart)}${indentedBlock}${value.slice(lineEnd)}`;
+                          setCode(nextValue);
+                          requestAnimationFrame(() => {
+                            textarea.setSelectionRange(start + indent.length, end + indent.length * selectedBlock.split("\n").length);
+                          });
+                          return;
+                        }
+
+                        const lines = selectedBlock.split("\n");
+                        let removed = 0;
+                        const outdentedBlock = lines
+                          .map((line) => {
+                            if (line.startsWith(indent)) {
+                              removed += indent.length;
+                              return line.slice(indent.length);
+                            }
+                            if (line.startsWith("\t")) {
+                              removed += 1;
+                              return line.slice(1);
+                            }
+                            if (line.startsWith(" ")) {
+                              removed += 1;
+                              return line.slice(1);
+                            }
+                            return line;
+                          })
+                          .join("\n");
+
+                        const firstLine = lines[0] ?? "";
+                        const removedAtStart = firstLine.startsWith(indent) ? indent.length : firstLine.startsWith("\t") || firstLine.startsWith(" ") ? 1 : 0;
+                        const nextValue = `${value.slice(0, lineStart)}${outdentedBlock}${value.slice(lineEnd)}`;
+                        setCode(nextValue);
+                        requestAnimationFrame(() => {
+                          const nextStart = Math.max(lineStart, start - removedAtStart);
+                          const nextEnd = Math.max(nextStart, end - removed);
+                          textarea.setSelectionRange(nextStart, nextEnd);
+                        });
+                      }}
                       onScroll={(event) => setEditorScroll({ top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft })}
                       spellCheck={false}
                       aria-label="Mermaid code editor"
