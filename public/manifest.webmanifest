@@ -1,0 +1,23 @@
+{
+  "name": "Mermaid Board",
+  "short_name": "MBoard",
+  "description": "A minimalist web application for creating and previewing Mermaid diagrams in real-time.",
+  "lang": "en",
+  "start_url": "/mmd-clone/",
+  "scope": "/mmd-clone/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "./pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
