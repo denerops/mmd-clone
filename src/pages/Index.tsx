@@ -1658,12 +1658,12 @@ const Index = () => {
             {(code !== savedCode || canRollback) && (
               <div className="absolute bottom-8 right-8 z-50 flex items-center rounded-2xl border border-white/30 bg-white/20 p-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95">
                 {canRollback && (
-                  <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={rollbackToPreviousSnapshot} aria-label="Rollback to previous version" title="Rollback to previous version">
+                  <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={rollbackToPreviousSnapshot} aria-label="Rollback to previous version" title="Rollback to previous version">
                     <RotateCcw className="size-5" />
                   </Button>
                 )}
                 {code !== savedCode && (
-                  <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
+                  <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={handleSave} aria-label="Save diagram" title="Unsaved changes">
                     <Save className="size-5" />
                   </Button>
                 )}
@@ -1672,7 +1672,7 @@ const Index = () => {
 
             {!editorFullScreen && (
               <div className="absolute bottom-8 left-8 z-50 flex items-center rounded-2xl border border-white/30 bg-white/20 p-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95">
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHelpOpen(true)} aria-label="Open help">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => setHelpOpen(true)} aria-label="Open help">
                   <HelpCircle className="size-5" />
                 </Button>
               </div>
@@ -1680,11 +1680,11 @@ const Index = () => {
 
             {!editorFullScreen && (
               <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-3 py-2 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]">
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => setEditorOpen((value) => !value)} aria-label={editorOpen ? "Collapse editor" : "Open editor"}>
                   {editorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
                 </Button>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setLayout(layout === "elk" ? "dagre-wrapper" : "elk")} aria-label={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`} title={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`}>
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => setLayout(layout === "elk" ? "dagre-wrapper" : "elk")} aria-label={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`} title={`Switch layout algorithm (current: ${layout === "elk" ? "ELK" : "Dagre"})`}>
                   <Workflow className="size-4" />
                 </Button>
                 <Palette className="size-4 text-foreground/80" />
@@ -1692,33 +1692,33 @@ const Index = () => {
                   value={diagramTheme}
                   onChange={(event) => setDiagramTheme(event.target.value as DiagramTheme)}
                   aria-label="Change theme"
-                  className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+                  className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground/90 outline-none transition-colors hover:bg-black/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground"
                 >
                   {(Object.entries(THEME_PRESETS) as Array<[DiagramTheme, { label: string }]>).map(([value, meta]) => (
                     <option key={value} value={value} className="bg-background">{meta.label}</option>
                   ))}
                 </select>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-                <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
+                <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
                   <Hand />
                 </Button>
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => adjustZoom(-10)} aria-label="Zoom out">
                   <Minus />
                 </Button>
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => adjustZoom(10)} aria-label="Zoom in">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => adjustZoom(10)} aria-label="Zoom in">
                   <Plus />
                 </Button>
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => { setZoom(100); setPan({ x: 0, y: 0 }); }} aria-label="Reset zoom and position">
                   <Focus />
                 </Button>
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleZoomToFit} aria-label="Zoom to fit entire diagram" title="Fit entire diagram in view">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={handleZoomToFit} aria-label="Zoom to fit entire diagram" title="Fit entire diagram in view">
                   <Frame className="size-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={handleZoomToSelection} disabled={!colorPickerTarget} aria-label="Zoom to selected element" title="Zoom to selected element">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={handleZoomToSelection} disabled={!colorPickerTarget} aria-label="Zoom to selected element" title="Zoom to selected element">
                   <Pointer className="size-4" />
                 </Button>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
-                <Button variant="ghost" size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
+                <Button variant="ghost" size="icon" className="text-foreground/85 hover:bg-black/10 hover:text-foreground dark:text-foreground/90 dark:hover:bg-white/15 dark:hover:text-foreground rounded-xl transition-colors" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">
                   {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
                 </Button>
                 <span className="w-12 text-right text-xs font-medium text-foreground/80">{zoom}%</span>
