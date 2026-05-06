@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
 import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown } from "lucide-react";
@@ -503,6 +503,8 @@ const Index = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [openedFileHandles, setOpenedFileHandles] = useState<Record<string, FileSystemFileHandle>>({});
 
   const [svg, setSvg] = useState("");
   const [svgSize, setSvgSize] = useState({ width: 900, height: 520 });
@@ -623,6 +625,12 @@ const Index = () => {
     saveGraphs(updated);
   };
 
+  const writeCodeToFile = async (fileHandle: FileSystemFileHandle, content: string) => {
+    const writable = await fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+  };
+
   const switchGraph = (id: string) => {
     // Save current before switching
     const updated = graphs.map((g) =>
@@ -683,14 +691,104 @@ const Index = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const now = Date.now();
     const updated = graphs.map((g) =>
       g.id === activeId ? { ...g, code, updatedAt: now, snapshots: addSnapshot(g.snapshots, code, now) } : g
     );
     persistGraphs(updated);
     setSavedCode(code);
+    const fileHandle = openedFileHandles[activeId];
+    if (fileHandle) {
+      try {
+        await writeCodeToFile(fileHandle, code);
+        toast.success("Version saved to local file");
+      } catch (saveError) {
+        console.error("Failed to save file", saveError);
+        toast.error("Saved locally, but failed writing file");
+      }
+      return;
+    }
     toast.success("Version saved");
+  };
+
+  const importMmdText = (rawContent: string, fileName: string, fileHandle?: FileSystemFileHandle) => {
+    const trimmedContent = rawContent.trim();
+    if (!trimmedContent) {
+      toast.error("File is empty");
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const nameWithoutExtension = fileName.replace(/\.mmd$/i, "") || "Imported Graph";
+    const importedGraph: GraphRecord = {
+      id,
+      name: nameWithoutExtension,
+      code: trimmedContent,
+      updatedAt: now,
+      snapshots: [createSnapshot(trimmedContent, now)],
+    };
+
+    const updated = graphs.map((g) =>
+      g.id === activeId ? { ...g, code, updatedAt: Date.now() } : g
+    );
+    const next = [...updated, importedGraph];
+    persistGraphs(next);
+    setActiveIdState(id);
+    setPersistedActiveId(id);
+    setCode(trimmedContent);
+    setSavedCode(trimmedContent);
+    setMenuOpen(false);
+    setLoadGraphModalOpen(false);
+
+    if (fileHandle) {
+      setOpenedFileHandles((previous) => ({ ...previous, [id]: fileHandle }));
+    }
+
+    toast.success(`Opened ${fileName}`);
+  };
+
+  const handleOpenMmd = async () => {
+    if ("showOpenFilePicker" in window) {
+      try {
+        const [fileHandle] = await window.showOpenFilePicker({
+          excludeAcceptAllOption: false,
+          multiple: false,
+          types: [
+            {
+              description: "Mermaid diagram",
+              accept: { "text/plain": [".mmd"] },
+            },
+          ],
+        });
+        if (!fileHandle) return;
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        importMmdText(content, file.name, fileHandle);
+        return;
+      } catch (openError) {
+        const error = openError as DOMException;
+        if (error?.name === "AbortError") return;
+        console.error("Failed to open .mmd file with file picker", openError);
+      }
+    }
+
+    fileInputRef.current?.click();
+  };
+
+  const handleMmdInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      importMmdText(content, file.name);
+    } catch (readError) {
+      console.error("Failed to read .mmd file", readError);
+      toast.error("Failed to read selected file");
+    }
   };
 
   const rollbackToSnapshot = (snapshot: GraphSnapshot) => {
@@ -1592,11 +1690,28 @@ const Index = () => {
                   Load graph
                   <span className="ml-auto rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold text-foreground/50 dark:bg-white/10">{graphs.length}</span>
                 </button>
+
+                <button
+                  id="graph-menu-open-mmd"
+                  onClick={handleOpenMmd}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  <FolderOpen className="size-4 shrink-0 text-foreground/50" />
+                  Open .mmd file
+                </button>
               </div>
             </div>
           )}
         </div>
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".mmd,text/plain"
+        onChange={handleMmdInputChange}
+        className="hidden"
+      />
 
       <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
         {editorOpen && (
