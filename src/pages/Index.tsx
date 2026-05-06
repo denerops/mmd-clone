@@ -1,7 +1,7 @@
 import { type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer } from "lucide-react";
+import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -522,14 +522,95 @@ const Index = () => {
   const [nodeDraft, setNodeDraft] = useState({ id: "", label: "" });
   const [helpOpen, setHelpOpen] = useState(false);
   const [editorScroll, setEditorScroll] = useState({ top: 0, left: 0 });
+  const [findOpen, setFindOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [activeFindMatch, setActiveFindMatch] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startY: 0, panX: 0, panY: 0 });
   const renderSequenceRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const findInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
+  const findMatches = useMemo(() => {
+    if (!findQuery) return [] as Array<{ start: number; end: number }>;
+    const escaped = escapeRegExp(findQuery);
+    if (!escaped) return [] as Array<{ start: number; end: number }>;
+    const regex = new RegExp(escaped, "g");
+    const matches: Array<{ start: number; end: number }> = [];
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(code)) !== null) {
+      const start = match.index;
+      const text = match[0];
+      matches.push({ start, end: start + text.length });
+      if (text.length === 0) {
+        regex.lastIndex += 1;
+      }
+    }
+    return matches;
+  }, [code, findQuery]);
   const activeSnapshots = activeGraph?.snapshots ?? [];
   const canRollback = activeSnapshots.some((snapshot) => snapshot.code !== savedCode);
+
+  const selectFindMatch = (matchIndex: number) => {
+    const targetMatch = findMatches[matchIndex];
+    if (!targetMatch || !textareaRef.current) return;
+    const textarea = textareaRef.current;
+    textarea.focus();
+    textarea.setSelectionRange(targetMatch.start, targetMatch.end);
+    requestAnimationFrame(() => {
+      const lineHeight = 24;
+      const visibleLines = Math.max(1, Math.floor(textarea.clientHeight / lineHeight));
+      const before = code.slice(0, targetMatch.start);
+      const lineNumber = before.split("\n").length - 1;
+      textarea.scrollTo({
+        top: Math.max(0, (lineNumber - Math.floor(visibleLines / 2)) * lineHeight),
+        behavior: "smooth",
+      });
+    });
+  };
+
+  const navigateFindMatches = (direction: 1 | -1) => {
+    if (findMatches.length === 0) return;
+    const nextIndex = (activeFindMatch + direction + findMatches.length) % findMatches.length;
+    setActiveFindMatch(nextIndex);
+    selectFindMatch(nextIndex);
+  };
+
+  const replaceCurrentMatch = () => {
+    const targetMatch = findMatches[activeFindMatch];
+    if (!targetMatch) return;
+    const nextCode = `${code.slice(0, targetMatch.start)}${replaceQuery}${code.slice(targetMatch.end)}`;
+    const nextSelectionStart = targetMatch.start;
+    const nextSelectionEnd = targetMatch.start + replaceQuery.length;
+    setCode(nextCode);
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+    });
+  };
+
+  const replaceAllMatches = () => {
+    if (!findQuery || findMatches.length === 0) return;
+    const regex = new RegExp(escapeRegExp(findQuery), "g");
+    const nextCode = code.replace(regex, replaceQuery);
+    setCode(nextCode);
+    toast.success(`Replaced ${findMatches.length} match${findMatches.length === 1 ? "" : "es"}`);
+  };
+
+  useEffect(() => {
+    if (findMatches.length === 0) {
+      setActiveFindMatch(0);
+      return;
+    }
+    if (activeFindMatch > findMatches.length - 1) {
+      setActiveFindMatch(findMatches.length - 1);
+    }
+  }, [activeFindMatch, findMatches.length]);
 
   useEffect(() => {
     const boardName = activeGraph?.name?.trim();
@@ -788,6 +869,29 @@ const Index = () => {
       if (isPrimaryModifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
         handleSave();
+        return;
+      }
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setEditorOpen(true);
+        setFindOpen(true);
+        requestAnimationFrame(() => {
+          findInputRef.current?.focus();
+          findInputRef.current?.select();
+        });
+        return;
+      }
+
+      if (isPrimaryModifier && event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        setEditorOpen(true);
+        setFindOpen(true);
+        setReplaceOpen(true);
+        requestAnimationFrame(() => {
+          replaceInputRef.current?.focus();
+          replaceInputRef.current?.select();
+        });
         return;
       }
 
@@ -1544,9 +1648,75 @@ const Index = () => {
                     ))}
                   </div>
                   <div className="relative min-h-0 flex-1 bg-editor">
+                    {findOpen && (
+                      <div className="absolute left-3 right-3 top-3 z-20 rounded-lg border border-editor-line bg-editor/95 p-2 shadow-lg backdrop-blur">
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={findInputRef}
+                            value={findQuery}
+                            onChange={(event) => setFindQuery(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                navigateFindMatches(event.shiftKey ? -1 : 1);
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setFindOpen(false);
+                                setReplaceOpen(false);
+                                textareaRef.current?.focus();
+                              }
+                            }}
+                            placeholder="Find"
+                            className="h-8 min-w-0 flex-1 rounded-md border border-editor-line bg-transparent px-2 text-xs text-editor-foreground outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <span className="min-w-[74px] text-center text-[11px] text-editor-foreground/70">
+                            {findMatches.length === 0 ? "0/0" : `${activeFindMatch + 1}/${findMatches.length}`}
+                          </span>
+                          <Button variant="ghost" size="icon" onClick={() => navigateFindMatches(-1)} className="size-8 text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground" aria-label="Find previous">
+                            <ChevronUp className="size-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => navigateFindMatches(1)} className="size-8 text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground" aria-label="Find next">
+                            <ChevronDown className="size-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setReplaceOpen((value) => !value)} className="h-8 px-2 text-xs text-editor-foreground/75 hover:bg-editor-line hover:text-editor-foreground">
+                            Replace
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => { setFindOpen(false); setReplaceOpen(false); textareaRef.current?.focus(); }} className="size-8 text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground" aria-label="Close find and replace">
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                        {replaceOpen && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <input
+                              ref={replaceInputRef}
+                              value={replaceQuery}
+                              onChange={(event) => setReplaceQuery(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  replaceCurrentMatch();
+                                }
+                              }}
+                              placeholder="Replace"
+                              className="h-8 min-w-0 flex-1 rounded-md border border-editor-line bg-transparent px-2 text-xs text-editor-foreground outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <Button variant="ghost" size="sm" onClick={replaceCurrentMatch} className="h-8 px-2 text-xs text-editor-foreground/75 hover:bg-editor-line hover:text-editor-foreground">
+                              Replace
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={replaceAllMatches} className="h-8 px-2 text-xs text-editor-foreground/75 hover:bg-editor-line hover:text-editor-foreground">
+                              Replace all
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <pre
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 overflow-hidden px-4 py-4 text-sm leading-6 text-editor-foreground"
+                      className={cn(
+                        "pointer-events-none absolute inset-0 overflow-hidden px-4 py-4 text-sm leading-6 text-editor-foreground",
+                        findOpen && "pt-16"
+                      )}
                       style={{ tabSize: 2 }}
                     >
                       <code
@@ -1565,6 +1735,27 @@ const Index = () => {
                       value={code}
                       onChange={(event) => setCode(event.target.value)}
                       onKeyDown={(event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+                          event.preventDefault();
+                          setFindOpen(true);
+                          requestAnimationFrame(() => {
+                            findInputRef.current?.focus();
+                            findInputRef.current?.select();
+                          });
+                          return;
+                        }
+
+                        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "h") {
+                          event.preventDefault();
+                          setFindOpen(true);
+                          setReplaceOpen(true);
+                          requestAnimationFrame(() => {
+                            replaceInputRef.current?.focus();
+                            replaceInputRef.current?.select();
+                          });
+                          return;
+                        }
+
                         if (event.key !== "Tab") return;
 
                         event.preventDefault();
@@ -1635,7 +1826,10 @@ const Index = () => {
                       onScroll={(event) => setEditorScroll({ top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft })}
                       spellCheck={false}
                       aria-label="Mermaid code editor"
-                      className="absolute inset-0 min-h-0 w-full resize-none bg-transparent px-4 py-4 text-sm leading-6 text-transparent caret-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35"
+                      className={cn(
+                        "absolute inset-0 min-h-0 w-full resize-none bg-transparent px-4 py-4 text-sm leading-6 text-transparent caret-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35",
+                        findOpen && "pt-16"
+                      )}
                       style={{ tabSize: 2 }}
                     />
                   </div>
@@ -1977,6 +2171,8 @@ const Index = () => {
                     { key: "Space", desc: "Toggle Hand Mode" },
                     { key: "E", desc: "Toggle Editor" },
                     { key: "Cmd/Ctrl + S", desc: "Save Diagram" },
+                    { key: "Cmd/Ctrl + F", desc: "Find in Editor" },
+                    { key: "Cmd/Ctrl + H", desc: "Replace in Editor" },
                     { key: "Ctrl + Scroll", desc: "Zoom In/Out" },
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between rounded-xl border border-black/5 bg-black/5 px-3 py-2 dark:border-white/5 dark:bg-white/5">
