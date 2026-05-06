@@ -100,7 +100,16 @@ const MAX_SNAPSHOTS = 20;
 export type GraphSnapshot = { id: string; code: string; createdAt: number };
 export type GraphRecord = { id: string; name: string; code: string; updatedAt: number; snapshots?: GraphSnapshot[] };
 export type LayoutRenderer = "dagre-wrapper" | "elk";
-export type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
+export type DiagramTheme =
+  | "base"
+  | "default"
+  | "dark"
+  | "forest"
+  | "neutral"
+  | "apple-glass"
+  | "aurora"
+  | "sunset"
+  | "midnight";
 
 export const createSnapshot = (code: string, createdAt = Date.now()): GraphSnapshot => ({
   id: crypto.randomUUID(),

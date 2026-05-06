@@ -252,10 +252,125 @@ const renderHighlightedLine = (line: string, lineIndex: number) => {
   return <span key={lineIndex}>{parts}</span>;
 };
 
-type LayoutRenderer = "dagre-wrapper" | "elk";
-type DiagramTheme = "base" | "default" | "dark" | "forest" | "neutral" | "apple-glass";
+const THEME_PRESETS: Record<
+  DiagramTheme,
+  {
+    label: string;
+    mermaidTheme: "base" | "default" | "dark" | "forest" | "neutral";
+    themeVariables: Record<string, string>;
+  }
+> = {
+  base: {
+    label: "Base",
+    mermaidTheme: "base",
+    themeVariables: {
+      primaryColor: "#ccfbf1",
+      primaryTextColor: "#102027",
+      primaryBorderColor: "#14b8a6",
+      lineColor: "#475569",
+      secondaryColor: "#eef2ff",
+      tertiaryColor: "#f8fafc",
+      fontFamily: "'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  "apple-glass": {
+    label: "Apple Glass",
+    mermaidTheme: "base",
+    themeVariables: {
+      primaryColor: "rgba(255, 255, 255, 0.4)",
+      primaryTextColor: "#1d1d1f",
+      primaryBorderColor: "rgba(255, 255, 255, 0.7)",
+      lineColor: "rgba(0, 0, 0, 0.25)",
+      secondaryColor: "rgba(245, 245, 247, 0.4)",
+      tertiaryColor: "rgba(229, 229, 234, 0.4)",
+      clusterBkg: "rgba(255, 255, 255, 0.2)",
+      clusterBorder: "rgba(0, 0, 0, 0.08)",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', sans-serif",
+      edgeLabelBackground: "rgba(255, 255, 255, 0.65)",
+      nodeBorder: "rgba(255, 255, 255, 0.8)",
+    },
+  },
+  aurora: {
+    label: "Aurora",
+    mermaidTheme: "base",
+    themeVariables: {
+      primaryColor: "#dbeafe",
+      primaryTextColor: "#0f172a",
+      primaryBorderColor: "#0ea5e9",
+      lineColor: "#0369a1",
+      secondaryColor: "#dcfce7",
+      tertiaryColor: "#f0f9ff",
+      clusterBkg: "#ecfeff",
+      clusterBorder: "#7dd3fc",
+      edgeLabelBackground: "#f8fafc",
+      fontFamily: "'Sora', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  sunset: {
+    label: "Sunset Bloom",
+    mermaidTheme: "base",
+    themeVariables: {
+      primaryColor: "#ffedd5",
+      primaryTextColor: "#431407",
+      primaryBorderColor: "#f97316",
+      lineColor: "#9a3412",
+      secondaryColor: "#ffe4e6",
+      tertiaryColor: "#fff1f2",
+      clusterBkg: "#fffbeb",
+      clusterBorder: "#fb923c",
+      edgeLabelBackground: "#fff7ed",
+      fontFamily: "'Fraunces', 'Avenir Next', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  midnight: {
+    label: "Midnight Ink",
+    mermaidTheme: "dark",
+    themeVariables: {
+      primaryColor: "#1e293b",
+      primaryTextColor: "#e2e8f0",
+      primaryBorderColor: "#38bdf8",
+      lineColor: "#7dd3fc",
+      secondaryColor: "#0f172a",
+      tertiaryColor: "#111827",
+      clusterBkg: "#0b1220",
+      clusterBorder: "#334155",
+      edgeLabelBackground: "#111827",
+      fontFamily: "'IBM Plex Sans', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  forest: {
+    label: "Forest",
+    mermaidTheme: "forest",
+    themeVariables: {
+      fontFamily: "'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  neutral: {
+    label: "Neutral",
+    mermaidTheme: "neutral",
+    themeVariables: {
+      fontFamily: "'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  default: {
+    label: "Default",
+    mermaidTheme: "default",
+    themeVariables: {
+      fontFamily: "'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+  dark: {
+    label: "Dark",
+    mermaidTheme: "dark",
+    themeVariables: {
+      fontFamily: "'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif",
+    },
+  },
+};
 
-const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
+const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => {
+  const preset = THEME_PRESETS[theme] ?? THEME_PRESETS.base;
+  return {
   startOnLoad: false,
   securityLevel: "loose" as const,
   maxTextSize: 5_000_000,
@@ -264,36 +379,10 @@ const getMermaidConfig = (theme: DiagramTheme, layout: LayoutRenderer) => ({
   flowchart: {
     defaultRenderer: layout,
   },
-  theme: theme === "apple-glass" ? "base" : theme,
-  themeVariables:
-    theme === "base"
-      ? {
-        primaryColor: "#ccfbf1",
-        primaryTextColor: "#102027",
-        primaryBorderColor: "#14b8a6",
-        lineColor: "#475569",
-        secondaryColor: "#eef2ff",
-        tertiaryColor: "#f8fafc",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-      }
-      : theme === "apple-glass"
-        ? {
-          primaryColor: "rgba(255, 255, 255, 0.4)",
-          primaryTextColor: "#1d1d1f",
-          primaryBorderColor: "rgba(255, 255, 255, 0.7)",
-          lineColor: "rgba(0, 0, 0, 0.25)",
-          secondaryColor: "rgba(245, 245, 247, 0.4)",
-          tertiaryColor: "rgba(229, 229, 234, 0.4)",
-          clusterBkg: "rgba(255, 255, 255, 0.2)",
-          clusterBorder: "rgba(0, 0, 0, 0.08)",
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', Roboto, sans-serif",
-          edgeLabelBackground: "rgba(255, 255, 255, 0.65)",
-          nodeBorder: "rgba(255, 255, 255, 0.8)",
-        }
-        : {
-          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-        },
-});
+  theme: preset.mermaidTheme,
+  themeVariables: preset.themeVariables,
+  };
+};
 
 const prepareSvgForSharpZoom = (rawSvg: string) => {
   const parser = new DOMParser();
@@ -1605,12 +1694,9 @@ const Index = () => {
                   aria-label="Change theme"
                   className="h-8 cursor-pointer rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
                 >
-                  <option value="base" className="bg-background">Base</option>
-                  <option value="apple-glass" className="bg-background">Apple Glass</option>
-                  <option value="default" className="bg-background">Default</option>
-                  <option value="dark" className="bg-background">Dark</option>
-                  <option value="forest" className="bg-background">Forest</option>
-                  <option value="neutral" className="bg-background">Neutral</option>
+                  {(Object.entries(THEME_PRESETS) as Array<[DiagramTheme, { label: string }]>).map(([value, meta]) => (
+                    <option key={value} value={value} className="bg-background">{meta.label}</option>
+                  ))}
                 </select>
                 <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
                 <Button variant={handMode ? "secondary" : "ghost"} size="icon" className="hover:bg-white/30 dark:hover:bg-white/10 rounded-xl transition-colors" onClick={() => setHandMode((value) => !value)} aria-label="Toggle hand move mode">
