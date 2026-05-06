@@ -442,6 +442,11 @@ const Index = () => {
   const activeSnapshots = activeGraph?.snapshots ?? [];
   const canRollback = activeSnapshots.some((snapshot) => snapshot.code !== savedCode);
 
+  useEffect(() => {
+    const boardName = activeGraph?.name?.trim();
+    document.title = boardName || "Tritan Board";
+  }, [activeGraph?.name]);
+
   // ── Multi-graph helpers ──────────────────────────────────────────────────
   const persistGraphs = (updated: GraphRecord[]) => {
     setGraphs(updated);
