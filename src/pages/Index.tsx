@@ -1,7 +1,7 @@
 import { type ChangeEvent, type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Cloud, Download, FileJson, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown } from "lucide-react";
+import { Cloud, Download, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -882,14 +882,13 @@ const Index = () => {
     }
   };
 
-  const handleExportJSON = () => {
+  const handleExportMMD = () => {
     const graph = graphs.find((g) => g.id === activeId);
-    const data = { name: graph?.name ?? "graph", code, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${(graph?.name ?? "graph").replace(/\s+/g, "-").toLowerCase()}.json`;
+    a.download = `${(graph?.name ?? "graph").replace(/\s+/g, "-").toLowerCase()}.mmd`;
     a.click();
     URL.revokeObjectURL(url);
     setMenuOpen(false);
@@ -1671,11 +1670,11 @@ const Index = () => {
                   {exportMenuOpen && (
                     <div className="mt-1 ml-4 space-y-0.5 border-l border-black/5 pl-2 animate-in slide-in-from-top-1 dark:border-white/5">
                       <button
-                        onClick={handleExportJSON}
+                        onClick={handleExportMMD}
                         className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                       >
-                        <FileJson className="size-3.5" />
-                        JSON Data
+                        <FileCode className="size-3.5" />
+                        Mermaid (.mmd)
                       </button>
                       <button
                         onClick={handleExportSVG}
@@ -1731,15 +1730,6 @@ const Index = () => {
                   <FolderOpen className="size-4 shrink-0 text-foreground/50" />
                   Load graph
                   <span className="ml-auto rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold text-foreground/50 dark:bg-white/10">{graphs.length}</span>
-                </button>
-
-                <button
-                  id="graph-menu-open-mmd"
-                  onClick={handleOpenMmd}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                >
-                  <FolderOpen className="size-4 shrink-0 text-foreground/50" />
-                  Open .mmd file
                 </button>
               </div>
             </div>
@@ -2433,6 +2423,14 @@ const Index = () => {
             </div>
 
             <div className="space-y-2 overflow-y-auto max-h-[50vh] pr-2 custom-scrollbar">
+              <button
+                onClick={handleOpenMmd}
+                className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-black/5 px-4 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-black/10 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <FolderOpen className="size-4 shrink-0 text-foreground/60" />
+                Load from local file (.mmd)
+              </button>
+
               {graphs.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground italic">No saved graphs yet</div>
               ) : (
@@ -2447,7 +2445,7 @@ const Index = () => {
                   >
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${g.id === activeId ? "bg-primary text-white" : "bg-background text-muted-foreground group-hover:text-foreground"
                       }`}>
-                      <FileJson className="size-5" />
+                      <FileCode className="size-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
