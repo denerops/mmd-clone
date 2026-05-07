@@ -737,6 +737,11 @@ const Index = () => {
     }
     toast.success("Version saved");
   };
+  const handleSaveRef = useRef(handleSave);
+
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
 
   const importMmdText = (rawContent: string, fileName: string, fileHandle?: FileSystemFileHandle) => {
     const trimmedContent = rawContent.trim();
@@ -991,7 +996,7 @@ const Index = () => {
 
       if (isPrimaryModifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        handleSave();
+        void handleSaveRef.current();
         return;
       }
 
