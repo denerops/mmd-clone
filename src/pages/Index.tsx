@@ -1955,6 +1955,7 @@ const Index = () => {
                     <textarea
                       ref={textareaRef}
                       value={code}
+                      wrap="off"
                       onChange={(event) => setCode(event.target.value)}
                       onKeyDown={(event) => {
                         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
@@ -2055,7 +2056,7 @@ const Index = () => {
                       spellCheck={false}
                       aria-label="Mermaid code editor"
                       className={cn(
-                        "absolute inset-0 min-h-0 w-full resize-none bg-transparent px-4 py-4 text-sm leading-6 text-transparent caret-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35",
+                        "absolute inset-0 min-h-0 w-full resize-none overflow-auto whitespace-pre bg-transparent px-4 py-4 text-sm leading-6 text-transparent caret-editor-foreground outline-none selection:bg-primary/35 placeholder:text-editor-foreground/35",
                         findOpen && "pt-16"
                       )}
                       style={{ tabSize: 2 }}
