@@ -1,7 +1,7 @@
 import { type ChangeEvent, type MouseEvent, type ReactNode, type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import mermaid from "mermaid";
 import elkLayouts from "@mermaid-js/layout-elk";
-import { Cloud, Download, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown } from "lucide-react";
+import { Cloud, Download, FolderOpen, Focus, Hand, HelpCircle, Menu, Minus, Moon, Palette, PanelLeftClose, PanelLeftOpen, Plus, Search, Sun, Workflow, Maximize, Minimize, Play, Timer, Save, X, FilePlus, Share2, Trash2, FileCode, ChevronRight, History, RotateCcw, Frame, Pointer, ChevronUp, ChevronDown, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import LZString from "lz-string";
 import { Button } from "@/components/ui/button";
@@ -194,6 +194,53 @@ const mermaidKeywords = new Set([
   "subgraph", "end", "classDef", "class", "style", "linkStyle", "click", "direction", "participant",
   "actor", "section", "title", "commit", "branch", "checkout", "merge",
 ]);
+
+const normalizeMermaidFormatting = (source: string) => {
+  const indentUnit = "  ";
+  const normalizedSource = source.replace(/\r\n?/g, "\n");
+  const rawLines = normalizedSource
+    .split("\n")
+    .map((line) => line.replace(/\t/g, indentUnit).replace(/\s+$/g, ""));
+  const firstNonEmpty = rawLines.find((line) => line.trim().length > 0)?.trimStart() ?? "";
+  const isFlowchartDocument = /^(flowchart|graph)\b/i.test(firstNonEmpty);
+
+  if (!isFlowchartDocument) {
+    return rawLines
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/^\n+|\n+$/g, "");
+  }
+
+  let indentLevel = 0;
+
+  const formattedLines = rawLines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return "";
+
+      if (/^(flowchart|graph)\b/i.test(trimmed)) {
+        indentLevel = 1;
+        return trimmed;
+      }
+
+      if (/^end\b/i.test(trimmed)) {
+        indentLevel = Math.max(1, indentLevel - 1);
+      }
+
+      const formattedLine = `${indentUnit.repeat(indentLevel)}${trimmed}`;
+
+      if (/^subgraph\b/i.test(trimmed)) {
+        indentLevel += 1;
+      }
+
+      return formattedLine;
+    });
+
+  return formattedLines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\n+|\n+$/g, "");
+};
 
 const renderHighlightedLine = (line: string, lineIndex: number) => {
   if (!line) return <span key={lineIndex}>{"\u00a0"}</span>;
@@ -630,6 +677,17 @@ const Index = () => {
     toast.success(`Replaced ${findMatches.length} match${findMatches.length === 1 ? "" : "es"}`);
   };
 
+  const formatMermaidCode = () => {
+    const nextCode = normalizeMermaidFormatting(code);
+    if (nextCode === code.replace(/^\n+|\n+$/g, "")) {
+      toast.message("Already formatted");
+      return;
+    }
+
+    setCode(nextCode);
+    toast.success("Code formatted");
+  };
+
   useEffect(() => {
     if (findMatches.length === 0) {
       setActiveFindMatch(0);
@@ -718,16 +776,20 @@ const Index = () => {
   };
 
   const handleSave = async () => {
+    const formattedCode = normalizeMermaidFormatting(code);
+    if (formattedCode !== code) {
+      setCode(formattedCode);
+    }
     const now = Date.now();
     const updated = graphs.map((g) =>
-      g.id === activeId ? { ...g, code, updatedAt: now, snapshots: addSnapshot(g.snapshots, code, now) } : g
+      g.id === activeId ? { ...g, code: formattedCode, updatedAt: now, snapshots: addSnapshot(g.snapshots, formattedCode, now) } : g
     );
     persistGraphs(updated);
-    setSavedCode(code);
+    setSavedCode(formattedCode);
     const fileHandle = openedFileHandles[activeId];
     if (fileHandle) {
       try {
-        await writeCodeToFile(fileHandle, code);
+        await writeCodeToFile(fileHandle, formattedCode);
         toast.success("Version saved to local file");
       } catch (saveError) {
         console.error("Failed to save file", saveError);
@@ -1001,13 +1063,14 @@ const Index = () => {
       }
 
       if (isPrimaryModifier && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        setEditorOpen(true);
-        setFindOpen(true);
-        requestAnimationFrame(() => {
-          findInputRef.current?.focus();
-          findInputRef.current?.select();
-        });
+        if (editorOpen) {
+          event.preventDefault();
+          setFindOpen(true);
+          requestAnimationFrame(() => {
+            findInputRef.current?.focus();
+            findInputRef.current?.select();
+          });
+        }
         return;
       }
 
@@ -1020,6 +1083,13 @@ const Index = () => {
           replaceInputRef.current?.focus();
           replaceInputRef.current?.select();
         });
+        return;
+      }
+
+      if (isPrimaryModifier && event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setEditorOpen(true);
+        formatMermaidCode();
         return;
       }
 
@@ -1042,7 +1112,7 @@ const Index = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [editorOpen, formatMermaidCode]);
 
   const adjustZoom = (delta: number) => {
     setZoom((value) => Math.max(1, Math.round((value + delta) * 100) / 100));
@@ -1188,9 +1258,6 @@ const Index = () => {
             y: event.clientY - boardRect.top,
           });
         }
-
-        // ── Smart Navigation (Click-to-Sync) ─────────────────────────────────
-        if (!editorOpen) setEditorOpen(true);
 
         const lines = code.split('\n');
         // Look for the node ID as a word, often followed by bracket/paren/arrow
@@ -1760,7 +1827,10 @@ const Index = () => {
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-editor-foreground/80">Mermaid source</div>
                     <div className="mt-0.5 text-xs text-editor-foreground/45">Live syntax preview</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={formatMermaidCode} aria-label="Format code" title="Format code (Cmd/Ctrl+Shift+F)" className="text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground">
+                      <Wand2 className="size-4" />
+                    </Button>
                     {!autoUpdate && (
                       <Button variant="ghost" size="icon" onClick={() => renderDiagram(code, diagramTheme, layout)} aria-label="Render diagram manually" className="text-editor-foreground/70 hover:bg-editor-line hover:text-editor-foreground">
                         <Play className="size-4" />
@@ -1905,6 +1975,12 @@ const Index = () => {
                             replaceInputRef.current?.focus();
                             replaceInputRef.current?.select();
                           });
+                          return;
+                        }
+
+                        if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+                          event.preventDefault();
+                          formatMermaidCode();
                           return;
                         }
 
@@ -2325,6 +2401,7 @@ const Index = () => {
                     { key: "Cmd/Ctrl + S", desc: "Save Diagram" },
                     { key: "Cmd/Ctrl + F", desc: "Find in Editor" },
                     { key: "Cmd/Ctrl + H", desc: "Replace in Editor" },
+                    { key: "Cmd/Ctrl + Shift + F", desc: "Format Code" },
                     { key: "Ctrl + Scroll", desc: "Zoom In/Out" },
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between rounded-xl border border-black/5 bg-black/5 px-3 py-2 dark:border-white/5 dark:bg-white/5">
